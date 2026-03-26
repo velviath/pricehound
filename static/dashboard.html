@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — PriceHound</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --slate-dark:  #2D3748;
+      --slate:       #4A5568;
+      --slate-light: #EDF2F7;
+      --sage:        #5C7A5C;
+      --sage-light:  #E8F0E8;
+      --rose:        #8B5E6B;
+      --rose-light:  #F5E6EC;
+      --bg:          #FAFAF8;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--bg);
+      color: var(--slate-dark);
+    }
+
+    /* ── Navbar ──────────────────────────────────────────── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 62px;
+      background: rgba(250,250,248,0.9);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      z-index: 100;
+    }
+    .logo {
+      font-size: 18px; font-weight: 700;
+      color: var(--slate-dark); text-decoration: none;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .logo-dot { width: 8px; height: 8px; background: var(--sage); border-radius: 50%; }
+    .nav-right { display: flex; gap: 12px; align-items: center; }
+    .user-email { font-size: 13px; color: var(--slate); font-weight: 500; }
+    .btn-nav {
+      padding: 9px 20px; border-radius: 10px;
+      font-family: inherit; font-size: 14px; font-weight: 600;
+      cursor: pointer; text-decoration: none;
+      border: 1.5px solid var(--slate-light);
+      color: var(--slate); background: transparent;
+      transition: all 0.18s;
+    }
+    .btn-nav:hover { border-color: var(--slate); }
+
+    /* ── Page ────────────────────────────────────────────── */
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 90px 32px 80px;
+    }
+
+    /* ── Summary bar ─────────────────────────────────────── */
+    .summary-bar {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+    .stat-card {
+      background: #fff; border-radius: 16px;
+      padding: 24px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    .stat-label {
+      font-size: 12px; font-weight: 700; color: var(--slate);
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px;
+    }
+    .stat-value { font-size: 36px; font-weight: 800; line-height: 1; }
+
+    /* ── Section header ──────────────────────────────────── */
+    .section-header {
+      display: flex; align-items: center;
+      justify-content: space-between; margin-bottom: 16px;
+    }
+    .section-title { font-size: 20px; font-weight: 700; }
+    .btn-add {
+      display: flex; align-items: center; gap: 6px;
+      padding: 10px 20px; background: var(--slate-dark); color: #fff;
+      border: none; border-radius: 10px; font-family: inherit;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      text-decoration: none; transition: opacity 0.2s;
+    }
+    .btn-add:hover { opacity: 0.85; }
+
+    /* ── Filter bar ──────────────────────────────────────── */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .search-wrap {
+      position: relative;
+      flex: 1;
+      min-width: 180px;
+    }
+    .search-wrap::before {
+      content: '🔍';
+      position: absolute;
+      left: 12px; top: 50%;
+      transform: translateY(-50%);
+      font-size: 13px;
+      pointer-events: none;
+    }
+    .search-input {
+      width: 100%;
+      padding: 9px 14px 9px 34px;
+      border: 1.5px solid var(--slate-light);
+      border-radius: 10px;
+      font-family: inherit; font-size: 13px;
+      color: var(--slate-dark); background: #fff;
+      outline: none; transition: border-color 0.18s;
+    }
+    .search-input:focus { border-color: var(--sage); }
+    .search-input::placeholder { color: #A0AEC0; }
+
+    .filter-chips { display: flex; gap: 6px; flex-shrink: 0; }
+    .chip {
+      padding: 7px 14px;
+      border: 1.5px solid var(--slate-light);
+      border-radius: 100px;
+      font-family: inherit; font-size: 12px; font-weight: 600;
+      color: var(--slate); background: transparent;
+      cursor: pointer; transition: all 0.16s; white-space: nowrap;
+    }
+    .chip:hover { border-color: var(--slate); }
+    .chip.active {
+      background: var(--slate-dark); color: #fff;
+      border-color: var(--slate-dark);
+    }
+
+    .sort-select {
+      padding: 8px 12px;
+      border: 1.5px solid var(--slate-light);
+      border-radius: 10px;
+      font-family: inherit; font-size: 13px;
+      color: var(--slate); background: #fff;
+      cursor: pointer; outline: none;
+      transition: border-color 0.18s; flex-shrink: 0;
+    }
+    .sort-select:focus { border-color: var(--sage); }
+
+    /* ── Scrollable product list ─────────────────────────── */
+    .product-list-wrapper {
+      max-height: calc(100vh - 370px);
+      min-height: 200px;
+      overflow-y: auto;
+      padding-right: 4px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--slate-light) transparent;
+    }
+    .product-list-wrapper::-webkit-scrollbar { width: 5px; }
+    .product-list-wrapper::-webkit-scrollbar-track { background: transparent; }
+    .product-list-wrapper::-webkit-scrollbar-thumb {
+      background: var(--slate-light); border-radius: 3px;
+    }
+
+    .product-list { display: flex; flex-direction: column; gap: 14px; }
+
+    /* ── Dashboard product card ───────────────────────────── */
+    .dash-card {
+      background: #fff; border-radius: 20px;
+      padding: 20px 24px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      display: grid; grid-template-columns: 80px 1fr auto;
+      gap: 20px; align-items: center;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .dash-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.09); }
+
+    .dash-img {
+      width: 80px; height: 80px; border-radius: 12px;
+      object-fit: cover; background: var(--slate-light);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; flex-shrink: 0; overflow: hidden;
+    }
+    .dash-img img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; }
+
+    .dash-info { min-width: 0; }
+    .dash-source {
+      font-size: 11px; font-weight: 700; color: var(--slate);
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px;
+    }
+    .dash-name {
+      font-size: 15px; font-weight: 600; margin-bottom: 10px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .dash-name a { color: inherit; text-decoration: none; }
+    .dash-name a:hover { text-decoration: underline; }
+
+    .dash-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .price-tag { font-size: 20px; font-weight: 800; }
+
+    .change-badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 12px; font-weight: 700;
+      padding: 3px 10px; border-radius: 100px;
+    }
+    .change-badge.down { background: var(--sage-light);  color: var(--sage); }
+    .change-badge.up   { background: var(--rose-light);  color: var(--rose); }
+    .change-badge.flat { background: var(--slate-light); color: var(--slate); }
+
+    .target-label {
+      font-size: 12px; color: var(--slate);
+      display: flex; align-items: center; gap: 5px;
+    }
+    .target-label strong { color: var(--slate-dark); }
+
+    .alert-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11px; font-weight: 700;
+      padding: 3px 10px; border-radius: 100px;
+    }
+    .alert-pill.active   { background: var(--sage-light);  color: var(--sage); }
+    .alert-pill.inactive { background: var(--slate-light); color: var(--slate); }
+
+    .dash-actions { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+    .btn-icon {
+      padding: 8px 14px; border-radius: 10px;
+      font-family: inherit; font-size: 12px; font-weight: 600;
+      cursor: pointer; border: 1.5px solid var(--slate-light);
+      background: transparent; color: var(--slate);
+      transition: all 0.18s; white-space: nowrap;
+    }
+    .btn-icon:hover { border-color: var(--slate); color: var(--slate-dark); }
+    .btn-icon.danger { border-color: var(--rose-light); color: var(--rose); }
+    .btn-icon.danger:hover { border-color: var(--rose); background: var(--rose-light); }
+
+    /* ── Modals ───────────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.4);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 500;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.22s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal {
+      background: #fff; border-radius: 20px; padding: 36px;
+      width: 100%; max-width: 400px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.18);
+      transform: translateY(20px); transition: transform 0.22s;
+    }
+    .modal-overlay.open .modal { transform: translateY(0); }
+    .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+    .modal-subtitle { font-size: 13px; color: var(--slate); margin-bottom: 24px; }
+
+    /* Price input */
+    .modal label { display: block; font-size: 13px; font-weight: 600; color: var(--slate); margin-bottom: 6px; }
+    .modal input[type="number"] {
+      width: 100%; padding: 12px 16px;
+      border: 1.5px solid var(--slate-light); border-radius: 12px;
+      font-family: inherit; font-size: 18px; font-weight: 700;
+      color: var(--slate-dark); outline: none;
+      transition: border-color 0.2s;
+      -moz-appearance: textfield;
+    }
+    .modal input[type="number"]::-webkit-inner-spin-button,
+    .modal input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+    .modal input[type="number"]:focus { border-color: var(--sage); }
+
+    /* Percentage display */
+    .pct-display {
+      font-size: 13px; font-weight: 600;
+      text-align: right; margin: 6px 0 16px;
+      min-height: 18px;
+    }
+    .pct-display.negative { color: var(--sage); }
+    .pct-display.positive { color: var(--rose); }
+    .pct-display.zero     { color: var(--slate); }
+
+    /* Range slider */
+    .slider-wrap { margin-bottom: 8px; }
+    input[type="range"] {
+      width: 100%; height: 4px;
+      -webkit-appearance: none; appearance: none;
+      background: var(--slate-light); border-radius: 2px;
+      outline: none; cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--slate-dark);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      cursor: grab; transition: background 0.15s, transform 0.1s;
+    }
+    input[type="range"]::-webkit-slider-thumb:active {
+      cursor: grabbing; transform: scale(1.15);
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 20px; height: 20px; border: none; border-radius: 50%;
+      background: var(--slate-dark);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      cursor: grab;
+    }
+    input[type="range"].sage-thumb::-webkit-slider-thumb { background: var(--sage); }
+    input[type="range"].rose-thumb::-webkit-slider-thumb { background: var(--rose); }
+    input[type="range"].sage-thumb::-moz-range-thumb    { background: var(--sage); }
+    input[type="range"].rose-thumb::-moz-range-thumb    { background: var(--rose); }
+
+    .slider-labels {
+      position: relative; height: 14px;
+      font-size: 10px; color: var(--slate); opacity: 0.6;
+      margin-top: 6px; margin-bottom: 20px;
+    }
+    .slider-labels span {
+      position: absolute;
+      transform: translateX(-50%);
+      white-space: nowrap;
+    }
+    .slider-labels span:nth-child(1) { left: 10px;              }
+    .slider-labels span:nth-child(2) { left: calc(5px + 25%);  }
+    .slider-labels span:nth-child(3) { left: 50%;              }
+    .slider-labels span:nth-child(4) { left: calc(75% - 5px);  }
+    .slider-labels span:nth-child(5) { left: calc(100% - 10px);}
+
+    .modal-actions { display: flex; gap: 10px; }
+    .btn-primary {
+      flex: 1; padding: 13px;
+      background: var(--slate-dark); color: #fff;
+      border: none; border-radius: 12px;
+      font-family: inherit; font-size: 14px; font-weight: 700;
+      cursor: pointer; transition: opacity 0.2s;
+    }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-primary.danger { background: var(--rose); }
+    .btn-secondary {
+      padding: 13px 20px; background: transparent; color: var(--slate);
+      border: 1.5px solid var(--slate-light); border-radius: 12px;
+      font-family: inherit; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: border-color 0.2s;
+    }
+    .btn-secondary:hover { border-color: var(--slate); }
+
+    /* Confirm modal body text */
+    .modal-body {
+      font-size: 14px; color: var(--slate);
+      line-height: 1.6; margin-bottom: 28px;
+    }
+
+    /* ── Skeleton ────────────────────────────────────────── */
+    .skeleton {
+      background: linear-gradient(90deg, #ece9e6 25%, #f4f1ee 50%, #ece9e6 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite; border-radius: 8px;
+    }
+    @keyframes shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .skel-card { height: 120px; border-radius: 20px; }
+
+    /* ── Empty state ─────────────────────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: 60px 0;
+      display: none;
+    }
+    .empty-text {
+      font-size: 14px;
+      color: var(--slate);
+    }
+
+    /* Fixed bottom "Track new product" button — only on empty state */
+    .btn-track-bottom {
+      position: fixed;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 14px 36px;
+      background: var(--slate-dark);
+      color: #fff;
+      border: none;
+      border-radius: 14px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+      transition: opacity 0.2s, transform 0.2s;
+      z-index: 50;
+      display: none;
+      white-space: nowrap;
+    }
+    .btn-track-bottom:hover {
+      opacity: 0.88;
+      transform: translateX(-50%) translateY(-2px);
+    }
+
+    /* No results in filtered list */
+    .no-results {
+      text-align: center;
+      padding: 40px 0;
+      font-size: 14px;
+      color: var(--slate);
+      display: none;
+    }
+
+    /* ── Onboarding tour ─────────────────────────────────── */
+    #tour-spotlight {
+      position: fixed;
+      z-index: 2001;
+      pointer-events: none;
+      border-radius: 14px;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.52);
+      transition: top 0.3s ease, left 0.3s ease, width 0.3s ease, height 0.3s ease;
+    }
+    #tour-tooltip {
+      position: fixed;
+      z-index: 2002;
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      width: 300px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+      transition: top 0.3s ease, left 0.3s ease;
+    }
+    .tour-step-count {
+      font-size: 11px; font-weight: 700; color: var(--slate);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+    .tour-title {
+      font-size: 16px; font-weight: 700; color: var(--slate-dark);
+      margin-bottom: 8px;
+    }
+    .tour-body {
+      font-size: 13px; color: var(--slate); line-height: 1.55;
+      margin-bottom: 20px;
+    }
+    .tour-actions { display: flex; align-items: center; justify-content: space-between; }
+    .tour-skip {
+      font-family: inherit; font-size: 13px; font-weight: 600;
+      color: var(--slate); background: none; border: none;
+      cursor: pointer; padding: 0; opacity: 0.7;
+      transition: opacity 0.15s;
+    }
+    .tour-skip:hover { opacity: 1; }
+    .tour-next {
+      font-family: inherit; font-size: 13px; font-weight: 700;
+      color: #fff; background: var(--slate-dark);
+      border: none; border-radius: 10px;
+      padding: 9px 18px; cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .tour-next:hover { opacity: 0.85; }
+
+    /* ── Toast ───────────────────────────────────────────── */
+    #toast-container {
+      position: fixed; bottom: 24px; right: 24px;
+      display: flex; flex-direction: column; gap: 10px; z-index: 9999;
+    }
+    .toast {
+      background: var(--slate-dark); color: #fff;
+      padding: 14px 20px; border-radius: 12px;
+      font-size: 14px; font-weight: 500;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+      animation: slideIn 0.3s ease; max-width: 320px;
+    }
+    .toast.success { background: var(--sage); }
+    .toast.error   { background: var(--rose); }
+    @keyframes slideIn {
+      from { transform: translateX(40px); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+
+    /* ── Responsive ──────────────────────────────────────── */
+    @media (max-width: 700px) {
+      .summary-bar { grid-template-columns: 1fr 1fr; }
+      .dash-card { grid-template-columns: 64px 1fr; }
+      .dash-actions { flex-direction: row; grid-column: 1/-1; }
+      nav { padding: 0 20px; }
+      main { padding: 80px 16px 60px; }
+      .filter-bar { gap: 8px; }
+      .filter-chips { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a class="logo" href="/">
+    <span class="logo-dot"></span>
+    PriceHound
+  </a>
+  <div class="nav-right">
+    <span class="user-email" id="nav-email"></span>
+    <button class="btn-nav" id="btn-logout">Sign Out</button>
+  </div>
+</nav>
+
+<main>
+  <!-- Summary -->
+  <div class="summary-bar">
+    <div class="stat-card">
+      <div class="stat-label">Tracking</div>
+      <div class="stat-value" id="s-total">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Active Alerts</div>
+      <div class="stat-value" id="s-active">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Alerts Triggered</div>
+      <div class="stat-value" id="s-triggered">—</div>
+    </div>
+  </div>
+
+  <!-- Section header -->
+  <div class="section-header">
+    <h2 class="section-title">Your tracked products</h2>
+    <a class="btn-add" href="/">+ Track new product</a>
+  </div>
+
+  <!-- Filter bar (hidden until products load) -->
+  <div class="filter-bar" id="filter-bar" style="display:none">
+    <div class="search-wrap">
+      <input class="search-input" id="search-input" type="text" placeholder="Search products…" />
+    </div>
+    <div class="filter-chips">
+      <button class="chip active" data-filter="all">All</button>
+      <button class="chip" data-filter="active">Active alerts</button>
+      <button class="chip" data-filter="dropped">Price dropped</button>
+    </div>
+    <select class="sort-select" id="sort-select">
+      <option value="date">Latest first</option>
+      <option value="price-asc">Price: low → high</option>
+      <option value="price-desc">Price: high → low</option>
+      <option value="change">Biggest drop first</option>
+      <option value="name">Name A–Z</option>
+    </select>
+  </div>
+
+  <!-- Skeleton loaders -->
+  <div class="product-list" id="skeleton-list">
+    <div class="skeleton skel-card"></div>
+    <div class="skeleton skel-card"></div>
+    <div class="skeleton skel-card"></div>
+  </div>
+
+  <!-- Scrollable product list -->
+  <div class="product-list-wrapper" id="list-wrapper" style="display:none">
+    <div class="product-list" id="product-list"></div>
+    <div class="no-results" id="no-results">No products match your search.</div>
+  </div>
+
+  <!-- Empty state -->
+  <div class="empty-state" id="empty-state">
+    <p class="empty-text">You're not tracking anything yet.</p>
+  </div>
+</main>
+
+<!-- Fixed bottom button — only shown on empty state -->
+<a class="btn-track-bottom" href="/" id="btn-track-bottom">+ Track new product</a>
+
+<!-- Edit target modal -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <h2 class="modal-title">Set target price</h2>
+    <p class="modal-subtitle" id="edit-current-label">Current price: —</p>
+
+    <label for="edit-price">Target price ($)</label>
+    <input type="number" id="edit-price" step="0.01" min="0.01" max="9999" />
+    <div class="pct-display zero" id="pct-display">—</div>
+
+    <div class="slider-wrap">
+      <input type="range" id="edit-slider" min="-50" max="50" step="1" value="-10" />
+      <div class="slider-labels">
+        <span>−50%</span><span>−25%</span><span>0%</span><span>+25%</span><span>+50%</span>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" id="btn-edit-cancel">Cancel</button>
+      <button class="btn-primary" id="btn-edit-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete confirm modal -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal">
+    <h2 class="modal-title">Remove this product?</h2>
+    <p class="modal-body">
+      This will remove the product and all its price history from your tracking list.
+      This action cannot be undone.
+    </p>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="btn-confirm-cancel">Cancel</button>
+      <button class="btn-primary danger" id="btn-confirm-ok">Remove</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<!-- Onboarding tour -->
+<div id="tour-spotlight" style="display:none"></div>
+<div id="tour-tooltip" style="display:none">
+  <div class="tour-step-count" id="tour-step-count"></div>
+  <div class="tour-title" id="tour-title"></div>
+  <div class="tour-body" id="tour-body"></div>
+  <div class="tour-actions">
+    <button class="tour-skip" id="tour-skip">Skip tour</button>
+    <button class="tour-next" id="tour-next">Next →</button>
+  </div>
+</div>
+
+<script>
+  const token = localStorage.getItem('ph_token');
+
+  // ── Auth guard ─────────────────────────────────────────────────────────────
+  if (!token) window.location.href = '/login';
+
+  function parseJwt(t) {
+    try { return JSON.parse(atob(t.split('.')[1])); } catch { return {}; }
+  }
+  const payload = parseJwt(token);
+  document.getElementById('nav-email').textContent = payload.email || '';
+
+  // ── Logout ─────────────────────────────────────────────────────────────────
+  document.getElementById('btn-logout').addEventListener('click', () => {
+    localStorage.removeItem('ph_token');
+    window.location.href = '/';
+  });
+
+  // ── Toast ──────────────────────────────────────────────────────────────────
+  function showToast(msg, type = '') {
+    const el = document.createElement('div');
+    el.className = 'toast' + (type ? ' ' + type : '');
+    el.textContent = msg;
+    document.getElementById('toast-container').appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function sourceFromUrl(url) {
+    try { return new URL(url).hostname.replace(/^www\./, ''); }
+    catch { return ''; }
+  }
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  let allProducts   = [];
+  let activeFilter  = 'all';
+  let editAlertId   = null;
+  let editCurrentPrice = 0;
+  let pendingDeleteId  = null;
+
+  // ── Load dashboard ─────────────────────────────────────────────────────────
+  async function loadDashboard() {
+    try {
+      const res = await fetch('/api/dashboard/', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (res.status === 401) { localStorage.removeItem('ph_token'); window.location.href = '/login'; return; }
+      if (!res.ok) throw new Error('API error');
+      const data = await res.json();
+      renderDashboard(data);
+    } catch {
+      showToast('Could not load dashboard. Please refresh.', 'error');
+      document.getElementById('skeleton-list').style.display = 'none';
+    }
+  }
+
+  function renderDashboard(data) {
+    document.getElementById('skeleton-list').style.display = 'none';
+    document.getElementById('s-total').textContent     = data.total_products;
+    document.getElementById('s-active').textContent    = data.active_alerts;
+    document.getElementById('s-triggered').textContent = data.alerts_triggered;
+
+    allProducts = data.products || [];
+
+    if (!allProducts.length) {
+      document.getElementById('empty-state').style.display   = 'block';
+      document.getElementById('btn-track-bottom').style.display = 'block';
+      startTour(false);
+      return;
+    }
+
+    document.getElementById('list-wrapper').style.display = 'block';
+    document.getElementById('filter-bar').style.display   = 'flex';
+    filterAndRender();
+    startTour(true);
+  }
+
+  // ── Filter / sort / render ─────────────────────────────────────────────────
+  function filterAndRender() {
+    const query = document.getElementById('search-input').value.trim().toLowerCase();
+    const sort  = document.getElementById('sort-select').value;
+
+    let items = allProducts.filter(p => {
+      if (query && !(p.name || '').toLowerCase().includes(query)) return false;
+      if (activeFilter === 'active'  && !p.alert_active)              return false;
+      if (activeFilter === 'dropped' && !(p.change_24h_pct < 0))      return false;
+      return true;
+    });
+
+    if (sort === 'price-asc')  items.sort((a, b) => (a.current_price || 0) - (b.current_price || 0));
+    if (sort === 'price-desc') items.sort((a, b) => (b.current_price || 0) - (a.current_price || 0));
+    if (sort === 'change')     items.sort((a, b) => (a.change_24h_pct || 0) - (b.change_24h_pct || 0));
+    if (sort === 'name')       items.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    // 'date' = API order (already sorted by created_at DESC)
+
+    const list = document.getElementById('product-list');
+    const noRes = document.getElementById('no-results');
+
+    if (!items.length) {
+      list.innerHTML = '';
+      noRes.style.display = 'block';
+    } else {
+      noRes.style.display = 'none';
+      list.innerHTML = items.map(p => buildCard(p)).join('');
+      attachCardListeners();
+    }
+  }
+
+  // ── Filter chips ───────────────────────────────────────────────────────────
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      activeFilter = chip.dataset.filter;
+      filterAndRender();
+    });
+  });
+  document.getElementById('search-input').addEventListener('input', filterAndRender);
+  document.getElementById('sort-select').addEventListener('change', filterAndRender);
+
+  // ── Build card HTML ────────────────────────────────────────────────────────
+  function buildCard(p) {
+    const imgHtml = p.image_url
+      ? `<div class="dash-img"><img src="${esc(p.image_url)}" alt="${esc(p.name || '')}" onerror="this.parentElement.innerHTML='📦'" /></div>`
+      : `<div class="dash-img">📦</div>`;
+
+    const priceStr = p.current_price != null ? '$' + Number(p.current_price).toFixed(2) : '—';
+    const source   = p.source || sourceFromUrl(p.url);
+
+    let changeBadge = '';
+    if (p.change_24h_pct != null) {
+      const pct  = Number(p.change_24h_pct).toFixed(1);
+      const cls   = p.change_24h_pct < 0 ? 'down' : p.change_24h_pct > 0 ? 'up' : 'flat';
+      const arrow = p.change_24h_pct < 0 ? '↓' : p.change_24h_pct > 0 ? '↑' : '→';
+      changeBadge = `<span class="change-badge ${cls}">${arrow} ${Math.abs(pct)}% 24h</span>`;
+    }
+
+    const targetStr = p.target_price != null ? '$' + Number(p.target_price).toFixed(2) : '—';
+    const alertPill = p.alert_active
+      ? `<span class="alert-pill active">🔔 Active</span>`
+      : `<span class="alert-pill inactive">Alert off</span>`;
+
+    return `
+      <div class="dash-card" data-id="${p.id}">
+        ${imgHtml}
+        <div class="dash-info">
+          <div class="dash-source">${esc(source || 'Unknown')}</div>
+          <div class="dash-name">
+            <a href="/product?id=${p.id}">${esc(p.name || 'Unknown product')}</a>
+          </div>
+          <div class="dash-meta">
+            <span class="price-tag">${priceStr}</span>
+            ${changeBadge}
+            <span class="target-label">Target: <strong>${targetStr}</strong></span>
+            ${alertPill}
+          </div>
+        </div>
+        <div class="dash-actions">
+          <button class="btn-icon"
+            data-action="edit"
+            data-alert-id="${esc(p.alert_id || '')}"
+            data-target="${esc(p.target_price || '')}"
+            data-current-price="${esc(p.current_price || '')}">Edit target</button>
+          <button class="btn-icon danger"
+            data-action="delete"
+            data-product-id="${p.id}">Delete</button>
+        </div>
+      </div>`;
+  }
+
+  // ── Card listeners ─────────────────────────────────────────────────────────
+  function attachCardListeners() {
+    document.querySelectorAll('[data-action="delete"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        pendingDeleteId = btn.dataset.productId;
+        openModal('confirm-modal');
+      });
+    });
+
+    document.querySelectorAll('[data-action="edit"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        editAlertId      = btn.dataset.alertId;
+        editCurrentPrice = parseFloat(btn.dataset.currentPrice) || 0;
+        const target     = parseFloat(btn.dataset.target) || (editCurrentPrice * 0.9);
+
+        document.getElementById('edit-current-label').textContent =
+          editCurrentPrice > 0 ? 'Current price: $' + editCurrentPrice.toFixed(2) : 'Current price: unknown';
+
+        const slider = document.getElementById('edit-slider');
+        slider.disabled = (editCurrentPrice <= 0);
+
+        document.getElementById('edit-price').value = target.toFixed(2);
+        updatePctDisplay(target);
+        if (editCurrentPrice > 0) {
+          const pct = Math.round((target / editCurrentPrice - 1) * 100);
+          slider.value = Math.max(-50, Math.min(50, pct));
+          updateSliderThumb(slider);
+        }
+        openModal('edit-modal');
+      });
+    });
+  }
+
+  // ── Edit modal — slider ↔ input sync ──────────────────────────────────────
+  const SNAP_POINTS = [-50, -25, -15, -10, 0, 10, 25, 50];
+
+  function snapToNearest(val) {
+    let best = null, bestDist = 4;
+    for (const sp of SNAP_POINTS) {
+      const d = Math.abs(val - sp);
+      if (d < bestDist) { bestDist = d; best = sp; }
+    }
+    return best !== null ? best : val;
+  }
+
+  function updatePctDisplay(targetPrice) {
+    const el = document.getElementById('pct-display');
+    if (!editCurrentPrice || editCurrentPrice <= 0) { el.textContent = '—'; el.className = 'pct-display zero'; return; }
+    const pct = ((targetPrice / editCurrentPrice) - 1) * 100;
+    if (Math.abs(pct) < 0.05) {
+      el.textContent = 'At current price';
+      el.className   = 'pct-display zero';
+    } else if (pct < 0) {
+      el.textContent = Math.abs(pct).toFixed(1) + '% below current price';
+      el.className   = 'pct-display negative';
+    } else {
+      el.textContent = pct.toFixed(1) + '% above current price';
+      el.className   = 'pct-display positive';
+    }
+  }
+
+  function updateSliderThumb(slider) {
+    const val = parseInt(slider.value);
+    slider.classList.remove('sage-thumb', 'rose-thumb');
+    if (val < 0)      slider.classList.add('sage-thumb');
+    else if (val > 0) slider.classList.add('rose-thumb');
+  }
+
+  // Slider → input (live while dragging)
+  document.getElementById('edit-slider').addEventListener('input', function() {
+    if (!editCurrentPrice) return;
+    const pct    = parseInt(this.value);
+    const price  = editCurrentPrice * (1 + pct / 100);
+    document.getElementById('edit-price').value = Math.max(0.01, price).toFixed(2);
+    updatePctDisplay(price);
+    updateSliderThumb(this);
+  });
+
+  // Slider → snap on release
+  document.getElementById('edit-slider').addEventListener('change', function() {
+    const snapped = snapToNearest(parseInt(this.value));
+    this.value = snapped;
+    if (editCurrentPrice) {
+      const price = editCurrentPrice * (1 + snapped / 100);
+      document.getElementById('edit-price').value = Math.max(0.01, price).toFixed(2);
+      updatePctDisplay(price);
+    }
+    updateSliderThumb(this);
+  });
+
+  // Input → slider (manual typing)
+  document.getElementById('edit-price').addEventListener('input', function() {
+    const price = parseFloat(this.value);
+    updatePctDisplay(isNaN(price) ? 0 : price);
+    if (!editCurrentPrice || isNaN(price)) return;
+    const pct = Math.round((price / editCurrentPrice - 1) * 100);
+    const slider = document.getElementById('edit-slider');
+    slider.value = Math.max(-50, Math.min(50, pct));
+    updateSliderThumb(slider);
+  });
+
+  // ── Modal helpers ──────────────────────────────────────────────────────────
+  function openModal(id) {
+    document.getElementById(id).classList.add('open');
+  }
+  function closeModal(id) {
+    document.getElementById(id).classList.remove('open');
+  }
+
+  // Close on backdrop click
+  ['edit-modal', 'confirm-modal'].forEach(id => {
+    document.getElementById(id).addEventListener('click', function(e) {
+      if (e.target === this) closeModal(id);
+    });
+  });
+
+  // Edit modal — cancel / save
+  document.getElementById('btn-edit-cancel').addEventListener('click', () => closeModal('edit-modal'));
+  document.getElementById('btn-edit-save').addEventListener('click', async () => {
+    const price = parseFloat(document.getElementById('edit-price').value);
+    if (!price || price <= 0 || price > 9999) { showToast('Enter a valid price (0–$9,999).', 'error'); return; }
+    if (!editAlertId) { showToast('No alert selected.', 'error'); return; }
+    try {
+      const res = await fetch(`/api/alerts/${editAlertId}/target?target_price=${price}`, {
+        method: 'PATCH', headers: { 'Authorization': 'Bearer ' + token },
+      });
+      if (res.ok) {
+        showToast('Target price updated!', 'success');
+        closeModal('edit-modal');
+        await loadDashboard();
+      } else {
+        showToast('Could not update target.', 'error');
+      }
+    } catch { showToast('Network error.', 'error'); }
+  });
+
+  // Delete modal — cancel / confirm
+  document.getElementById('btn-confirm-cancel').addEventListener('click', () => {
+    closeModal('confirm-modal'); pendingDeleteId = null;
+  });
+  document.getElementById('btn-confirm-ok').addEventListener('click', async () => {
+    if (!pendingDeleteId) return;
+    closeModal('confirm-modal');
+    try {
+      const res = await fetch(`/api/products/${pendingDeleteId}`, {
+        method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token },
+      });
+      if (res.ok || res.status === 204) {
+        // Remove from allProducts and re-render
+        allProducts = allProducts.filter(p => String(p.id) !== String(pendingDeleteId));
+        document.getElementById('s-total').textContent = allProducts.length;
+        if (!allProducts.length) {
+          document.getElementById('list-wrapper').style.display   = 'none';
+          document.getElementById('filter-bar').style.display     = 'none';
+          document.getElementById('empty-state').style.display    = 'block';
+          document.getElementById('btn-track-bottom').style.display = 'block';
+        } else {
+          filterAndRender();
+        }
+        showToast('Product removed.', 'success');
+      } else {
+        showToast('Could not delete product.', 'error');
+      }
+    } catch { showToast('Network error.', 'error'); }
+    pendingDeleteId = null;
+  });
+
+  // ── Onboarding tour ────────────────────────────────────────────────────────
+  const TOUR_STEPS = [
+    {
+      selector: '.summary-bar',
+      title: 'Your tracking at a glance',
+      body: 'See how many products you\'re following, how many alerts are active, and how many have already triggered.',
+      place: 'below',
+    },
+    {
+      selector: '.btn-add',
+      title: 'Track a new product',
+      body: 'Paste any product URL — Amazon, Best Buy, or other stores — and we\'ll start monitoring the price for you.',
+      place: 'below',
+    },
+    {
+      selector: '#filter-bar',
+      title: 'Filter and search',
+      body: 'Quickly find products by name, filter by alert status, or sort by biggest price drop.',
+      place: 'below',
+    },
+    {
+      selector: '.dash-actions',
+      title: 'Manage your alerts',
+      body: 'Set a target price — we\'ll email you the moment it drops that low. Or remove the product if you\'re no longer interested.',
+      place: 'left',
+    },
+  ];
+
+  let tourStep = 0;
+  let tourSteps = [];
+
+  function tourSpotlight() { return document.getElementById('tour-spotlight'); }
+  function tourTooltip()   { return document.getElementById('tour-tooltip'); }
+
+  function positionTour(step) {
+    const el = document.querySelector(step.selector);
+    if (!el) return false;
+
+    const PAD = 8;
+    const rect = el.getBoundingClientRect();
+    const spot = tourSpotlight();
+    const tip  = tourTooltip();
+
+    spot.style.top    = (rect.top  - PAD) + 'px';
+    spot.style.left   = (rect.left - PAD) + 'px';
+    spot.style.width  = (rect.width  + PAD * 2) + 'px';
+    spot.style.height = (rect.height + PAD * 2) + 'px';
+
+    const TIP_W = 300;
+    const TIP_MARGIN = 16;
+    let tipTop, tipLeft;
+
+    if (step.place === 'left') {
+      tipTop  = rect.top + rect.height / 2 - 80;
+      tipLeft = rect.left - TIP_W - TIP_MARGIN;
+      if (tipLeft < 12) tipLeft = rect.right + TIP_MARGIN;
+    } else {
+      // below by default; fall back to above if not enough room
+      const belowTop = rect.bottom + PAD + TIP_MARGIN;
+      if (belowTop + 160 < window.innerHeight) {
+        tipTop = belowTop;
+      } else {
+        tipTop = rect.top - PAD - TIP_MARGIN - 160;
+      }
+      tipLeft = rect.left + rect.width / 2 - TIP_W / 2;
+      tipLeft = Math.max(12, Math.min(window.innerWidth - TIP_W - 12, tipLeft));
+    }
+
+    tip.style.top  = tipTop  + 'px';
+    tip.style.left = tipLeft + 'px';
+    return true;
+  }
+
+  function showTourStep(idx) {
+    const step = tourSteps[idx];
+    const spot = tourSpotlight();
+    const tip  = tourTooltip();
+
+    if (!positionTour(step)) {
+      // target not in DOM — skip this step
+      if (idx + 1 < tourSteps.length) showTourStep(idx + 1);
+      else endTour();
+      return;
+    }
+
+    spot.style.display = 'block';
+    tip.style.display  = 'block';
+
+    document.getElementById('tour-step-count').textContent =
+      'Step ' + (idx + 1) + ' of ' + tourSteps.length;
+    document.getElementById('tour-title').textContent = step.title;
+    document.getElementById('tour-body').textContent  = step.body;
+
+    const nextBtn = document.getElementById('tour-next');
+    nextBtn.textContent = idx + 1 < tourSteps.length ? 'Next →' : 'Done ✓';
+    tourStep = idx;
+  }
+
+  function endTour() {
+    tourSpotlight().style.display = 'none';
+    tourTooltip().style.display   = 'none';
+    localStorage.setItem('ph_tour_done', '1');
+  }
+
+  function startTour(hasProducts) {
+    if (localStorage.getItem('ph_tour_done')) return;
+    tourSteps = hasProducts
+      ? TOUR_STEPS
+      : TOUR_STEPS.slice(0, 2); // summary + add button only for empty state
+    // small delay so layout is settled
+    setTimeout(() => showTourStep(0), 500);
+  }
+
+  document.getElementById('tour-next').addEventListener('click', () => {
+    if (tourStep + 1 < tourSteps.length) showTourStep(tourStep + 1);
+    else endTour();
+  });
+  document.getElementById('tour-skip').addEventListener('click', endTour);
+
+  // Reposition on resize
+  window.addEventListener('resize', () => {
+    if (tourTooltip().style.display === 'block') positionTour(tourSteps[tourStep]);
+  });
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  loadDashboard();
+</script>
+</body>
+</html>

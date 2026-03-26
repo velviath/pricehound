@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PriceHound — Track prices, get notified</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --slate-dark:  #2D3748;
+      --slate:       #4A5568;
+      --slate-light: #EDF2F7;
+      --sage:        #5C7A5C;
+      --sage-light:  #E8F0E8;
+      --rose:        #8B5E6B;
+      --rose-light:  #F5E6EC;
+      --bg:          #FAFAF8;
+    }
+
+    html, body { height: 100%; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--bg);
+      color: var(--slate-dark);
+    }
+
+    /* ── Navbar ──────────────────────────────────────────── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 62px;
+      background: rgba(250,250,248,0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      z-index: 100;
+    }
+    .logo {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--slate-dark);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .logo-dot {
+      width: 8px; height: 8px;
+      background: var(--sage);
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .nav-actions { display: flex; gap: 12px; align-items: center; }
+    .btn-nav {
+      position: relative;
+      overflow: hidden;
+      padding: 9px 20px;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.18s;
+    }
+    .btn-nav-outline {
+      background: transparent;
+      border: 1.5px solid var(--slate-light);
+      color: var(--slate);
+    }
+    .btn-nav-outline:hover { border-color: var(--slate); }
+    .btn-nav-filled {
+      background: var(--slate-dark);
+      border: none;
+      color: #fff;
+    }
+    .btn-nav-filled:hover { opacity: 0.85; }
+    .btn-nav:active { transform: scale(0.96); }
+
+    /* Ripple */
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      transform: scale(0);
+      animation: rippleAnim 0.52s ease-out forwards;
+      pointer-events: none;
+    }
+    @keyframes rippleAnim { to { transform: scale(3); opacity: 0; } }
+
+    /* ── Hero split layout ───────────────────────────────── */
+    .hero {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      padding-top: 62px;
+      /* Sticky: stays pinned while the section below scrolls over it */
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    /* Left side */
+    .hero-left {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 80px 60px 80px 80px;
+    }
+
+    /* Subtle badge — no tautology with "Track" headline */
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #fff;
+      color: var(--slate);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 14px 6px 10px;
+      border-radius: 100px;
+      margin-bottom: 24px;
+      width: fit-content;
+      border: 1px solid var(--slate-light);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .badge-dot {
+      width: 7px; height: 7px;
+      background: var(--sage);
+      border-radius: 50%;
+      flex-shrink: 0;
+      animation: badgePulse 2.2s ease-in-out infinite;
+    }
+    @keyframes badgePulse {
+      0%, 100% { opacity: 1;   transform: scale(1);    }
+      50%       { opacity: 0.5; transform: scale(0.75); }
+    }
+
+    h1 {
+      font-size: clamp(36px, 4vw, 56px);
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 20px;
+      letter-spacing: -0.02em;
+    }
+    h1 span { color: var(--sage); }
+    .hero-subtitle {
+      color: var(--slate);
+      font-size: 17px;
+      line-height: 1.65;
+      max-width: 460px;
+      margin-bottom: 40px;
+    }
+
+    /* Track input */
+    .track-form {
+      display: flex;
+      gap: 12px;
+      max-width: 480px;
+    }
+    .track-input {
+      flex: 1;
+      padding: 15px 20px;
+      border: 1.5px solid var(--slate-light);
+      border-radius: 14px;
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--slate-dark);
+      background: #fff;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .track-input:focus {
+      border-color: var(--sage);
+      box-shadow: 0 0 0 3px rgba(92,122,92,0.12);
+    }
+    .track-input::placeholder { color: #A0AEC0; }
+
+    .btn-track {
+      position: relative;
+      overflow: hidden;
+      padding: 15px 28px;
+      background: var(--slate-dark);
+      color: #fff;
+      border: none;
+      border-radius: 14px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.18s, transform 0.12s;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-track:hover { opacity: 0.88; }
+    .btn-track:active { transform: scale(0.95); }
+    .btn-track:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    /* Animated loading dots */
+    .loading-dots {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .loading-dots span {
+      display: inline-block;
+      width: 4px; height: 4px;
+      background: currentColor;
+      border-radius: 50%;
+      animation: dotBounce 1.2s ease-in-out infinite;
+    }
+    .loading-dots span:nth-child(2) { animation-delay: 0.16s; }
+    .loading-dots span:nth-child(3) { animation-delay: 0.32s; }
+    @keyframes dotBounce {
+      0%, 80%, 100% { transform: translateY(0);   opacity: 0.35; }
+      40%            { transform: translateY(-4px); opacity: 1;    }
+    }
+
+    /* Hint aligns with text inside the input (20px internal padding) */
+    .track-hint {
+      margin-top: 10px;
+      padding-left: 20px;
+      font-size: 12px;
+      color: var(--slate);
+      display: none;
+    }
+    .track-hint.visible { display: block; }
+    .track-hint.error   { color: var(--rose); }
+
+    /* Right side */
+    .hero-right {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 80px 80px 40px;
+      background: linear-gradient(135deg, #f0f4f0 0%, #faf8f5 100%);
+      overflow: hidden;
+    }
+
+    /* Decorative rose symbols behind the card */
+    .hero-deco {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      user-select: none;
+    }
+    .hero-deco span {
+      position: absolute;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 800;
+      color: rgba(139, 94, 107, 0.09);
+      line-height: 1;
+    }
+
+    /* Floating demo card — overflow visible so tooltip can escape the card bounds */
+    .product-card-demo {
+      background: #fff;
+      border-radius: 20px;
+      padding: 28px;
+      width: 320px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.12);
+      animation: float 4s ease-in-out infinite;
+      overflow: visible;
+    }
+    /* Pause float on hover so chart tooltips are easy to read */
+    .product-card-demo:hover { animation-play-state: paused; }
+    @keyframes float {
+      0%, 100% { transform: translateY(0px);   }
+      50%       { transform: translateY(-14px); }
+    }
+
+    /* Demo card image — square, full-coverage */
+    .demo-img-wrap {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .demo-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .demo-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--slate);
+      margin-bottom: 4px;
+    }
+    .demo-price {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--slate-dark);
+      margin-bottom: 8px;
+    }
+    .demo-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--sage-light);
+      color: var(--sage);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 100px;
+      margin-bottom: 18px;
+    }
+    .demo-chart-wrap {
+      height: 70px;
+      overflow: visible;
+    }
+
+    /* ── Stats bar ───────────────────────────────────────── */
+    .stats-bar {
+      margin-top: 48px;
+      padding-top: 40px;
+      border-top: 1.5px solid var(--slate-light);
+    }
+    .stats-row {
+      display: flex;
+      gap: 40px;
+      flex-wrap: wrap;
+    }
+    .stat-value { font-size: 28px; font-weight: 800; }
+    .stat-label { font-size: 13px; color: var(--slate); margin-top: 2px; }
+    .stat-demo-note {
+      margin-top: 14px;
+      font-size: 11px;
+      color: #A0AEC0;
+      font-style: italic;
+    }
+
+    /* ── Currently tracking section ──────────────────────── */
+    /* z-index > hero so it slides over the sticky hero on scroll */
+    .section {
+      position: relative;
+      z-index: 10;
+      background: #fff;
+      border-radius: 28px 28px 0 0;
+      margin-top: -28px;
+      box-shadow: 0 -10px 40px rgba(0,0,0,0.07);
+      padding: 80px 0;   /* no horizontal padding — handled by inner elements */
+    }
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 32px;
+      padding: 0 8%;
+    }
+    .section-title {
+      font-size: 24px;
+      font-weight: 800;
+    }
+
+    /* Grid cards — fixed card width, equal gaps on all 4 sides via space-evenly */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 300px);
+      justify-content: space-evenly;
+    }
+
+    .product-card-grid {
+      background: #fff;
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+      transition: transform 0.22s ease, box-shadow 0.22s ease;
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+    .product-card-grid:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 32px rgba(0,0,0,0.11);
+    }
+
+    /* Square full-coverage image */
+    .grid-card-img-wrap {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .grid-card-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.3s ease;
+    }
+    .product-card-grid:hover .grid-card-img { transform: scale(1.04); }
+
+    .grid-card-source {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--slate);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+      opacity: 0.55;
+    }
+    .grid-card-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--slate);
+      margin-bottom: 8px;
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .grid-card-price {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--slate-dark);
+      margin-bottom: 8px;
+    }
+    .grid-card-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 100px;
+    }
+    .grid-card-badge.down { background: var(--sage-light); color: var(--sage); }
+    .grid-card-badge.up   { background: var(--rose-light); color: var(--rose); }
+
+    /* Card meta row — watchers + last updated */
+    .grid-card-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--slate-light);
+      font-size: 11px;
+      color: var(--slate);
+      opacity: 0.7;
+    }
+    .grid-card-meta-sep { opacity: 0.4; }
+
+    /* ── Toast ───────────────────────────────────────────── */
+    #toast-container {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 9999;
+    }
+    .toast {
+      background: var(--slate-dark);
+      color: #fff;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+      animation: slideIn 0.3s ease;
+      max-width: 320px;
+    }
+    .toast.success { background: var(--sage); }
+    .toast.error   { background: var(--rose); }
+    @keyframes slideIn {
+      from { transform: translateX(40px); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+
+    /* ── Currency banner ─────────────────────────────────── */
+    .currency-banner {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: #fff;
+      border-top: 1px solid var(--slate-light);
+      padding: 16px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      z-index: 200;
+      box-shadow: 0 -4px 24px rgba(0,0,0,0.07);
+      transform: translateY(100%);
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .currency-banner.visible { transform: translateY(0); }
+    .currency-banner-text { font-size: 14px; color: var(--slate); line-height: 1.5; }
+    .currency-banner-text strong { color: var(--slate-dark); }
+    .currency-banner-actions { display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+
+    .btn-currency-yes {
+      position: relative;
+      overflow: hidden;
+      padding: 9px 20px;
+      background: var(--slate-dark);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.18s, transform 0.12s;
+    }
+    .btn-currency-yes:hover { opacity: 0.85; }
+    .btn-currency-yes:active { transform: scale(0.96); }
+    .btn-currency-no {
+      padding: 9px 16px;
+      background: transparent;
+      color: var(--slate);
+      border: 1.5px solid var(--slate-light);
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-color 0.18s, transform 0.12s;
+    }
+    .btn-currency-no:hover  { border-color: var(--slate); }
+    .btn-currency-no:active { transform: scale(0.96); }
+
+    /* ── Responsive ──────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; }
+      .hero-right { display: none; }
+      .hero-left { padding: 60px 32px; }
+      .section { padding: 40px 0; }
+      .section-header { padding: 0 24px; }
+      .cards-grid { grid-template-columns: 1fr; column-gap: 0; row-gap: 20px; padding: 0 24px; }
+      .stats-row { gap: 24px; }
+      nav { padding: 0 24px; }
+      .currency-banner { padding: 16px 24px; flex-direction: column; align-items: flex-start; gap: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a class="logo" href="/">
+    <span class="logo-dot"></span>
+    PriceHound
+  </a>
+  <div class="nav-actions">
+    <a class="btn-nav btn-nav-outline" href="/login?tab=login" id="nav-login">Sign In</a>
+    <a class="btn-nav btn-nav-filled" href="/login?tab=register" id="nav-signup">Sign Up</a>
+  </div>
+</nav>
+
+<!-- Currency banner (slides up when non-USD location detected) -->
+<div class="currency-banner" id="currency-banner" role="complementary">
+  <p class="currency-banner-text">
+    We noticed you may be browsing from <strong id="currency-country">your region</strong>.
+    Would you like prices displayed in <strong id="currency-code">your currency</strong>?
+  </p>
+  <div class="currency-banner-actions">
+    <button class="btn-currency-yes" id="btn-currency-yes">
+      Use <span id="currency-label">local currency</span>
+    </button>
+    <button class="btn-currency-no" onclick="dismissCurrency('USD')">Keep USD</button>
+  </div>
+</div>
+
+<!-- ── Hero ──────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="hero-left">
+
+    <span class="hero-badge">
+      <span class="badge-dot"></span>
+      AI-powered watchdog
+    </span>
+
+    <h1>Track prices.<br />Get notified<br />when they <span>drop.</span></h1>
+    <p class="hero-subtitle">
+      Paste any product URL and PriceHound will monitor its price 24/7.
+      We'll email you the moment it hits your target — powered by AI insights.
+    </p>
+
+    <div class="track-form">
+      <input
+        class="track-input"
+        id="track-url"
+        type="url"
+        placeholder="Paste a product URL to start tracking…"
+      />
+      <button class="btn-track" id="btn-track">Track</button>
+    </div>
+    <div class="track-hint" id="track-hint"></div>
+
+    <div class="stats-bar">
+      <div class="stats-row">
+        <div class="stat-item">
+          <div class="stat-value">12,847</div>
+          <div class="stat-label">Products tracked</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">3,241</div>
+          <div class="stat-label">Active alerts</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">$2.4M</div>
+          <div class="stat-label">Saved by users</div>
+        </div>
+      </div>
+      <p class="stat-demo-note">Sample figures for illustration purposes · not real-time data</p>
+    </div>
+
+  </div>
+
+  <div class="hero-right">
+    <!-- Subtle decorative symbols in rose palette -->
+    <div class="hero-deco" aria-hidden="true">
+      <span style="top:8%;  left:5%;   font-size:108px; transform:rotate(-14deg)">%</span>
+      <span style="top:62%; left:4%;   font-size:88px;  transform:rotate(9deg)">$</span>
+      <span style="top:14%; right:6%;  font-size:96px;  transform:rotate(20deg)">$</span>
+      <span style="bottom:20%; right:4%; font-size:72px; transform:rotate(-8deg)">%</span>
+      <span style="bottom:7%;  left:30%; font-size:80px; transform:rotate(13deg)">$</span>
+    </div>
+    <div class="product-card-demo">
+      <div class="demo-img-wrap">
+        <img
+          class="demo-img"
+          src="/static/img/sony-wh1000xm5.jpg"
+          alt="Sony WH-1000XM5 Headphones"
+          loading="eager"
+          onerror="this.parentElement.innerHTML='<span style=font-size:44px;display:block;text-align:center;padding:20px>🎧</span>'"
+        />
+      </div>
+      <div class="demo-name">Sony WH-1000XM5 Headphones</div>
+      <div class="demo-price">$279.99</div>
+      <div class="demo-badge">↓ 12% this month</div>
+      <div class="demo-chart-wrap">
+        <canvas id="demo-chart"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Currently Tracking ─────────────────────────────────────── -->
+<section class="section">
+  <div class="section-header">
+    <h2 class="section-title">Currently tracking</h2>
+  </div>
+  <div class="cards-grid">
+
+    <!-- Card 1: Sony WH-1000XM5 -->
+    <a class="product-card-grid" href="#" id="demo-card-0">
+      <div class="grid-card-img-wrap">
+        <img
+          class="grid-card-img"
+          src="/static/img/sony-wh1000xm5.jpg"
+          alt="Sony WH-1000XM5"
+          loading="lazy"
+          onerror="this.parentElement.innerHTML='<span style=font-size:40px;display:block;text-align:center;padding:20px>🎧</span>'"
+        />
+      </div>
+      <div class="grid-card-source">Amazon</div>
+      <div class="grid-card-name">Sony WH-1000XM5 Wireless Noise Canceling Headphones</div>
+      <div class="grid-card-price">$279.99</div>
+      <div class="grid-card-badge down">↓ 12% this month</div>
+      <div class="grid-card-meta">
+        <span>👁 47 watching</span>
+        <span class="grid-card-meta-sep">·</span>
+        <span>Updated 2h ago</span>
+      </div>
+    </a>
+
+    <!-- Card 2: Apple AirPods Pro -->
+    <a class="product-card-grid" href="#" id="demo-card-1">
+      <div class="grid-card-img-wrap">
+        <img
+          class="grid-card-img"
+          src="/static/img/airpods-pro.jpg"
+          alt="Apple AirPods Pro"
+          loading="lazy"
+          onerror="this.parentElement.innerHTML='<span style=font-size:40px;display:block;text-align:center;padding:20px>🎵</span>'"
+        />
+      </div>
+      <div class="grid-card-source">Amazon</div>
+      <div class="grid-card-name">Apple AirPods Pro (2nd Generation) — USB‑C</div>
+      <div class="grid-card-price">$189.99</div>
+      <div class="grid-card-badge down">↓ 9% this week</div>
+      <div class="grid-card-meta">
+        <span>👁 128 watching</span>
+        <span class="grid-card-meta-sep">·</span>
+        <span>Updated 1h ago</span>
+      </div>
+    </a>
+
+    <!-- Card 3: Kindle Paperwhite -->
+    <a class="product-card-grid" href="#" id="demo-card-2">
+      <div class="grid-card-img-wrap">
+        <img
+          class="grid-card-img"
+          src="/static/img/kindle-paperwhite.jpg"
+          alt="Kindle Paperwhite"
+          loading="lazy"
+          onerror="this.parentElement.innerHTML='<span style=font-size:40px;display:block;text-align:center;padding:20px>📖</span>'"
+        />
+      </div>
+      <div class="grid-card-source">Amazon</div>
+      <div class="grid-card-name">Kindle Paperwhite (16 GB) — Now with 3 months Kindle Unlimited</div>
+      <div class="grid-card-price">$129.99</div>
+      <div class="grid-card-badge down">↓ 8% this month</div>
+      <div class="grid-card-meta">
+        <span>👁 92 watching</span>
+        <span class="grid-card-meta-sep">·</span>
+        <span>Updated 3h ago</span>
+      </div>
+    </a>
+
+  </div>
+</section>
+
+<div id="toast-container"></div>
+
+<script>
+  // ── Navbar: swap Sign Up → Dashboard if logged in ──────────────────────────
+  if (localStorage.getItem('ph_token')) {
+    document.getElementById('nav-login').style.display = 'none';
+    const btn = document.getElementById('nav-signup');
+    btn.textContent = 'Dashboard';
+    btn.href = '/dashboard';
+  }
+
+  // ── Ripple effect helper ───────────────────────────────────────────────────
+  function addRipple(el, light) {
+    el.addEventListener('click', function(e) {
+      const rect  = this.getBoundingClientRect();
+      const size  = Math.max(rect.width, rect.height);
+      const r     = document.createElement('span');
+      r.className = 'ripple';
+      r.style.cssText = [
+        `width:${size}px`, `height:${size}px`,
+        `left:${e.clientX - rect.left - size / 2}px`,
+        `top:${e.clientY - rect.top  - size / 2}px`,
+        `background:${light ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.07)'}`,
+      ].join(';');
+      this.appendChild(r);
+      setTimeout(() => r.remove(), 560);
+    });
+  }
+
+  document.querySelectorAll('.btn-nav-filled').forEach(b => addRipple(b, true));
+  document.querySelectorAll('.btn-nav-outline').forEach(b => addRipple(b, false));
+
+  // ── Currency detection ─────────────────────────────────────────────────────
+  (async function detectCurrency() {
+    if (localStorage.getItem('ph_currency')) return;
+    try {
+      const ctrl  = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 3000);
+      const res   = await fetch('https://ipapi.co/json/', { signal: ctrl.signal });
+      clearTimeout(timer);
+      const data  = await res.json();
+      const currency = data.currency;
+      const country  = data.country_name;
+      if (!currency || currency === 'USD') return;
+      document.getElementById('currency-country').textContent = country || 'your region';
+      document.getElementById('currency-code').textContent    = currency;
+      document.getElementById('currency-label').textContent   = currency;
+      document.getElementById('btn-currency-yes').onclick     = () => dismissCurrency(currency);
+      setTimeout(() => document.getElementById('currency-banner').classList.add('visible'), 1800);
+    } catch {}
+  })();
+
+  function dismissCurrency(code) {
+    localStorage.setItem('ph_currency', code || 'USD');
+    document.getElementById('currency-banner').classList.remove('visible');
+  }
+
+  // ── Demo chart (floating card) ─────────────────────────────────────────────
+  (function() {
+    const labels = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+    const prices = [349, 329, 299, 310, 289, 280];
+    new Chart(document.getElementById('demo-chart').getContext('2d'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: prices,
+          borderColor: '#5C7A5C',
+          backgroundColor: 'rgba(92,122,92,0.08)',
+          borderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          hitRadius: 16,              // large invisible hit zone — easy to hover
+          pointBackgroundColor: '#5C7A5C',
+          fill: true,
+          tension: 0.4,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            enabled: true,
+            caretSize: 0,             // remove arrow — cleaner look, no direction issues
+            caretPadding: 12,
+            backgroundColor: '#2D3748',
+            titleColor: 'rgba(255,255,255,0.6)',
+            bodyColor: '#fff',
+            bodyFont:  { size: 13, weight: '700', family: 'Plus Jakarta Sans' },
+            titleFont: { size: 11, family: 'Plus Jakarta Sans' },
+            padding: 10,
+            cornerRadius: 8,
+            displayColors: false,
+            callbacks: {
+              title: (items) => items[0].label,
+              label: (ctx)   => '$' + ctx.parsed.y.toFixed(2),
+            }
+          }
+        },
+        scales: {
+          x: { display: false },
+          y: { display: false, min: 260, max: 370 },
+        },
+      }
+    });
+  })();
+
+  // ── Load demo product IDs and update card links ────────────────────────────
+  (async function initDemoCards() {
+    try {
+      const res   = await fetch('/api/products/demo');
+      if (!res.ok) return;
+      const demos = await res.json();
+      demos.forEach((d, i) => {
+        const card = document.getElementById('demo-card-' + i);
+        if (card && d.id) card.href = '/product?id=' + d.id;
+      });
+    } catch {}
+  })();
+
+  // ── Toast helper ───────────────────────────────────────────────────────────
+  function showToast(msg, type = '') {
+    const el       = document.createElement('div');
+    el.className   = 'toast' + (type ? ' ' + type : '');
+    el.textContent = msg;
+    document.getElementById('toast-container').appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+
+  // ── Track a product ────────────────────────────────────────────────────────
+  document.getElementById('btn-track').addEventListener('click', trackProduct);
+  document.getElementById('track-url').addEventListener('keydown', e => {
+    if (e.key === 'Enter') trackProduct();
+  });
+
+  async function trackProduct() {
+    const input = document.getElementById('track-url');
+    const hint  = document.getElementById('track-hint');
+    const btn   = document.getElementById('btn-track');
+    const url   = input.value.trim();
+
+    hint.className   = 'track-hint';
+    hint.textContent = '';
+
+    if (!url) {
+      hint.textContent = 'Please paste a product URL first.';
+      hint.classList.add('visible', 'error');
+      return;
+    }
+
+    btn.disabled  = true;
+    btn.innerHTML = 'Tracking <span class="loading-dots"><span></span><span></span><span></span></span>';
+    hint.textContent = 'Fetching product info…';
+    hint.classList.add('visible');
+
+    try {
+      const res  = await fetch('/api/products/track', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ url }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        hint.textContent = data.detail || 'Could not track this product.';
+        hint.classList.add('error');
+        return;
+      }
+
+      showToast('Product added! Redirecting…', 'success');
+      setTimeout(() => { window.location.href = '/product?id=' + data.id; }, 800);
+    } catch {
+      hint.textContent = 'Network error. Please check your connection and try again.';
+      hint.classList.add('error');
+    } finally {
+      btn.disabled  = false;
+      btn.innerHTML = 'Track';
+    }
+  }
+
+  // Ripple on Track button
+  addRipple(document.getElementById('btn-track'), true);
+</script>
+</body>
+</html>

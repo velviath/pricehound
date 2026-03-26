@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Product — PriceHound</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --slate-dark:  #2D3748;
+      --slate:       #4A5568;
+      --slate-light: #EDF2F7;
+      --sage:        #5C7A5C;
+      --sage-light:  #E8F0E8;
+      --rose:        #8B5E6B;
+      --rose-light:  #F5E6EC;
+      --bg:          #FAFAF8;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--bg);
+      color: var(--slate-dark);
+    }
+
+    /* ── Navbar ──────────────────────────────────────────── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 62px;
+      background: rgba(250,250,248,0.9);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      z-index: 100;
+    }
+    .logo {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--slate-dark);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .logo-dot { width: 8px; height: 8px; background: var(--sage); border-radius: 50%; }
+    .nav-right { display: flex; gap: 12px; }
+    .btn-nav {
+      padding: 9px 20px;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-nav-outline { background: transparent; border: 1.5px solid var(--slate-light); color: var(--slate); }
+    .btn-nav-outline:hover { border-color: var(--slate); }
+    .btn-nav-filled { background: var(--slate-dark); border: none; color: #fff; }
+    .btn-nav-filled:hover { opacity: 0.85; }
+
+    /* ── Page ────────────────────────────────────────────── */
+    main {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 90px 32px 80px;
+    }
+
+    /* Skeleton */
+    .skeleton {
+      background: linear-gradient(90deg, #ece9e6 25%, #f4f1ee 50%, #ece9e6 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 8px;
+    }
+    @keyframes shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* ── Product header ──────────────────────────────────── */
+    .product-header {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 40px;
+      margin-bottom: 40px;
+    }
+
+    .product-img-wrap {
+      aspect-ratio: 1;
+      border-radius: 20px;
+      overflow: hidden;
+      background: var(--slate-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .product-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .product-img-placeholder {
+      font-size: 72px;
+    }
+
+    .product-info { display: flex; flex-direction: column; justify-content: center; }
+    .product-source {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--slate);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 10px;
+    }
+    .product-name {
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.3;
+      margin-bottom: 20px;
+    }
+
+    .price-block { margin-bottom: 16px; }
+    .price-current {
+      font-size: 40px;
+      font-weight: 800;
+      color: var(--slate-dark);
+      line-height: 1;
+    }
+    .price-old {
+      font-size: 18px;
+      color: var(--slate);
+      text-decoration: line-through;
+      margin-left: 10px;
+    }
+    .price-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 5px 12px;
+      border-radius: 100px;
+      margin-top: 8px;
+    }
+    .price-badge.down { background: var(--sage-light);  color: var(--sage); }
+    .price-badge.up   { background: var(--rose-light);  color: var(--rose); }
+
+    .watchers {
+      font-size: 13px;
+      color: var(--slate);
+      margin-bottom: 24px;
+    }
+    .watchers strong { color: var(--slate-dark); }
+
+    .btn-alert {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      background: var(--slate-dark);
+      color: #fff;
+      border: none;
+      border-radius: 14px;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s;
+    }
+    .btn-alert:hover { opacity: 0.88; }
+    .btn-alert:active { transform: scale(0.97); }
+
+    .btn-source {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 14px 20px;
+      background: transparent;
+      color: var(--slate);
+      border: 1.5px solid var(--slate-light);
+      border-radius: 14px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color 0.2s;
+      margin-left: 10px;
+    }
+    .btn-source:hover { border-color: var(--slate); }
+
+    /* ── Chart section ───────────────────────────────────── */
+    .chart-card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 28px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+    .chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .chart-title { font-size: 16px; font-weight: 700; }
+
+    .period-tabs { display: flex; gap: 4px; }
+    .period-btn {
+      padding: 7px 16px;
+      border: none;
+      background: var(--slate-light);
+      color: var(--slate);
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.18s;
+    }
+    .period-btn.active {
+      background: var(--slate-dark);
+      color: #fff;
+    }
+
+    .chart-wrap { height: 220px; }
+
+    /* ── AI Insight ──────────────────────────────────────── */
+    .insight-card {
+      background: linear-gradient(135deg, var(--sage-light) 0%, #f0f5f0 100%);
+      border-radius: 20px;
+      padding: 28px;
+      margin-bottom: 24px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .insight-icon {
+      font-size: 28px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .insight-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--sage);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 8px;
+    }
+    .insight-text {
+      font-size: 15px;
+      line-height: 1.65;
+      color: var(--slate-dark);
+    }
+
+    /* ── Alert modal ─────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 500;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.22s;
+    }
+    .modal-overlay.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .modal {
+      background: #fff;
+      border-radius: 20px;
+      padding: 36px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.18);
+      transform: translateY(20px);
+      transition: transform 0.22s;
+    }
+    .modal-overlay.open .modal { transform: translateY(0); }
+
+    .modal-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+    .modal-sub   { color: var(--slate); font-size: 14px; margin-bottom: 28px; }
+
+    .field { margin-bottom: 16px; }
+    label { display: block; font-size: 13px; font-weight: 600; color: var(--slate); margin-bottom: 6px; }
+    input[type="email"], input[type="number"] {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1.5px solid var(--slate-light);
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 15px;
+      color: var(--slate-dark);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus { border-color: var(--sage); }
+
+    .modal-actions { display: flex; gap: 10px; margin-top: 8px; }
+    .btn-primary {
+      flex: 1;
+      padding: 13px;
+      background: var(--slate-dark);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary {
+      padding: 13px 20px;
+      background: transparent;
+      color: var(--slate);
+      border: 1.5px solid var(--slate-light);
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .btn-secondary:hover { border-color: var(--slate); }
+
+    .modal-error {
+      background: var(--rose-light);
+      color: var(--rose);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      margin-bottom: 14px;
+      display: none;
+    }
+
+    /* ── Toast ───────────────────────────────────────────── */
+    #toast-container {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 9999;
+    }
+    .toast {
+      background: var(--slate-dark);
+      color: #fff;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+      animation: slideIn 0.3s ease;
+      max-width: 320px;
+    }
+    .toast.success { background: var(--sage); }
+    .toast.error   { background: var(--rose); }
+    @keyframes slideIn {
+      from { transform: translateX(40px); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+
+    /* ── Responsive ──────────────────────────────────────── */
+    @media (max-width: 700px) {
+      .product-header { grid-template-columns: 1fr; }
+      .product-img-wrap { max-width: 200px; }
+      nav { padding: 0 20px; }
+      main { padding: 80px 16px 60px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a class="logo" href="/">
+    <span class="logo-dot"></span>
+    PriceHound
+  </a>
+  <div class="nav-right" id="nav-right">
+    <a class="btn-nav btn-nav-outline" href="/login">Sign In</a>
+    <a class="btn-nav btn-nav-filled" href="/login">Sign Up</a>
+  </div>
+</nav>
+
+<main id="main-content">
+  <!-- Skeleton while loading -->
+  <div id="skeleton-view">
+    <div class="product-header">
+      <div class="skeleton" style="aspect-ratio:1;border-radius:20px;"></div>
+      <div>
+        <div class="skeleton" style="height:14px;width:80px;margin-bottom:14px;"></div>
+        <div class="skeleton" style="height:28px;margin-bottom:10px;"></div>
+        <div class="skeleton" style="height:28px;width:60%;margin-bottom:24px;"></div>
+        <div class="skeleton" style="height:48px;width:50%;margin-bottom:10px;"></div>
+        <div class="skeleton" style="height:20px;width:40%;"></div>
+      </div>
+    </div>
+    <div class="skeleton" style="height:280px;border-radius:20px;margin-bottom:24px;"></div>
+    <div class="skeleton" style="height:120px;border-radius:20px;"></div>
+  </div>
+
+  <!-- Actual content (hidden until loaded) -->
+  <div id="product-view" style="display:none;">
+    <div class="product-header">
+      <div class="product-img-wrap" id="img-wrap"></div>
+      <div class="product-info">
+        <div class="product-source" id="p-source"></div>
+        <h1 class="product-name" id="p-name"></h1>
+        <div class="price-block">
+          <span class="price-current" id="p-price"></span>
+          <span class="price-old" id="p-price-old" style="display:none;"></span>
+        </div>
+        <div id="p-change-badge"></div>
+        <p class="watchers" style="margin-top:12px;" id="p-watchers"></p>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;">
+          <button class="btn-alert" id="btn-alert">🔔 Set Alert</button>
+          <a class="btn-source" id="btn-source" target="_blank" rel="noopener">↗ View on site</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <span class="chart-title">Price History</span>
+        <div class="period-tabs">
+          <button class="period-btn active" data-period="week">Week</button>
+          <button class="period-btn" data-period="month">Month</button>
+          <button class="period-btn" data-period="all">All time</button>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="price-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- AI Insight -->
+    <div class="insight-card" id="insight-card" style="display:none;">
+      <div class="insight-icon">🤖</div>
+      <div>
+        <div class="insight-label">AI Price Insight</div>
+        <div class="insight-text" id="insight-text"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error view -->
+  <div id="error-view" style="display:none; text-align:center; padding:80px 0;">
+    <div style="font-size:48px;margin-bottom:16px;">😕</div>
+    <h2 style="margin-bottom:8px;">Product not found</h2>
+    <p style="color:var(--slate);">This product may have been removed or the link is invalid.</p>
+    <a href="/" style="display:inline-block;margin-top:24px;color:var(--sage);font-weight:600;">← Back to home</a>
+  </div>
+</main>
+
+<!-- ── Alert Modal ──────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h2 class="modal-title">Set a Price Alert</h2>
+    <p class="modal-sub">We'll email you when the price drops to your target.</p>
+    <div class="modal-error" id="modal-error"></div>
+    <div class="field" id="field-email-wrap">
+      <label for="alert-email">Your Email</label>
+      <input type="email" id="alert-email" placeholder="you@example.com" />
+    </div>
+    <div class="field">
+      <label for="alert-price">Target Price ($)</label>
+      <input type="number" id="alert-price" placeholder="e.g. 199.99" step="0.01" min="0.01" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="btn-modal-cancel">Cancel</button>
+      <button class="btn-primary" id="btn-modal-save">Set Alert</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const productId = parseInt(params.get('id'));
+  const token = localStorage.getItem('ph_token');
+
+  let priceChart = null;
+  let productData = null;
+
+  // ── Navbar ─────────────────────────────────────────────────────────────────
+  if (token) {
+    document.getElementById('nav-right').innerHTML = `
+      <a class="btn-nav btn-nav-outline" href="/dashboard">Dashboard</a>`;
+  }
+
+  // ── Toast ──────────────────────────────────────────────────────────────────
+  function showToast(msg, type = '') {
+    const el = document.createElement('div');
+    el.className = 'toast' + (type ? ' ' + type : '');
+    el.textContent = msg;
+    document.getElementById('toast-container').appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Load product ───────────────────────────────────────────────────────────
+  async function loadProduct(period = 'week') {
+    if (!productId) { showError(); return; }
+
+    try {
+      const res = await fetch(`/api/products/${productId}?period=${period}`);
+      if (res.status === 404) { showError(); return; }
+      if (!res.ok) throw new Error('API error');
+      productData = await res.json();
+      renderProduct(productData);
+    } catch (err) {
+      showError();
+    }
+  }
+
+  function showError() {
+    document.getElementById('skeleton-view').style.display = 'none';
+    document.getElementById('product-view').style.display = 'none';
+    document.getElementById('error-view').style.display = 'block';
+  }
+
+  function renderProduct(p) {
+    document.getElementById('skeleton-view').style.display = 'none';
+    document.getElementById('product-view').style.display = 'block';
+
+    // Image
+    const imgWrap = document.getElementById('img-wrap');
+    if (p.image_url) {
+      imgWrap.innerHTML = `<img class="product-img" src="${esc(p.image_url)}" alt="${esc(p.name || '')}" onerror="this.parentElement.innerHTML='<div class=product-img-placeholder>📦</div>'" />`;
+    } else {
+      imgWrap.innerHTML = '<div class="product-img-placeholder">📦</div>';
+    }
+
+    document.getElementById('p-source').textContent = p.source || '';
+    document.getElementById('p-name').textContent = p.name || 'Unknown product';
+    document.title = (p.name || 'Product') + ' — PriceHound';
+    document.getElementById('btn-source').href = p.url;
+
+    // Price
+    const price = p.current_price != null ? '$' + Number(p.current_price).toFixed(2) : '—';
+    document.getElementById('p-price').textContent = price;
+
+    // Price change badge
+    if (p.price_history && p.price_history.length > 1) {
+      const first = p.price_history[0].price;
+      const cur   = p.current_price;
+      const pct   = ((cur - first) / first * 100).toFixed(1);
+      const cls   = pct < 0 ? 'down' : 'up';
+      const arrow = pct < 0 ? '↓' : '↑';
+      document.getElementById('p-change-badge').innerHTML =
+        `<span class="price-badge ${cls}">${arrow} ${Math.abs(pct)}% since tracking began</span>`;
+
+      // Old price (first recorded)
+      const oldEl = document.getElementById('p-price-old');
+      if (first !== cur) {
+        oldEl.textContent = '$' + Number(first).toFixed(2);
+        oldEl.style.display = '';
+      }
+    }
+
+    // Watchers
+    document.getElementById('p-watchers').innerHTML =
+      `<strong>${p.watcher_count}</strong> ${p.watcher_count === 1 ? 'person' : 'people'} tracking this`;
+
+    // AI Insight
+    if (p.ai_insight) {
+      document.getElementById('insight-text').textContent = p.ai_insight;
+      document.getElementById('insight-card').style.display = 'flex';
+    }
+
+    // Pre-fill alert price
+    if (p.current_price) {
+      const suggested = (p.current_price * 0.9).toFixed(2);
+      document.getElementById('alert-price').value = suggested;
+    }
+
+    // Chart
+    renderChart(p.price_history || []);
+  }
+
+  function renderChart(history) {
+    const labels = history.map(h => {
+      const d = new Date(h.checked_at);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    });
+    const data = history.map(h => Number(h.price));
+
+    if (priceChart) priceChart.destroy();
+
+    const ctx = document.getElementById('price-chart').getContext('2d');
+    priceChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Price',
+          data,
+          borderColor: '#5C7A5C',
+          backgroundColor: 'rgba(92,122,92,0.08)',
+          borderWidth: 2.5,
+          pointRadius: 4,
+          pointBackgroundColor: '#5C7A5C',
+          pointHoverRadius: 6,
+          fill: true,
+          tension: 0.35,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#2D3748',
+            padding: 12,
+            cornerRadius: 10,
+            callbacks: {
+              label: ctx => ' $' + ctx.parsed.y.toFixed(2),
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(0,0,0,0.04)' },
+            ticks: { font: { family: 'Plus Jakarta Sans', size: 12 }, color: '#4A5568' }
+          },
+          y: {
+            grid: { color: 'rgba(0,0,0,0.04)' },
+            ticks: {
+              font: { family: 'Plus Jakarta Sans', size: 12 },
+              color: '#4A5568',
+              callback: v => '$' + v.toFixed(2),
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // ── Period tabs ────────────────────────────────────────────────────────────
+  document.querySelectorAll('.period-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      await loadProduct(btn.dataset.period);
+    });
+  });
+
+  // ── Alert modal ────────────────────────────────────────────────────────────
+  function openModal() {
+    // If logged in, hide email field (we use account email server-side)
+    document.getElementById('field-email-wrap').style.display = token ? 'none' : 'block';
+    document.getElementById('modal-overlay').classList.add('open');
+  }
+  function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('open');
+    document.getElementById('modal-error').style.display = 'none';
+  }
+
+  document.getElementById('btn-alert').addEventListener('click', openModal);
+  document.getElementById('btn-modal-cancel').addEventListener('click', closeModal);
+  document.getElementById('modal-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('modal-overlay')) closeModal();
+  });
+
+  document.getElementById('btn-modal-save').addEventListener('click', async () => {
+    const errEl  = document.getElementById('modal-error');
+    const emailEl = document.getElementById('alert-email');
+    const priceEl = document.getElementById('alert-price');
+
+    errEl.style.display = 'none';
+
+    const targetPrice = parseFloat(priceEl.value);
+    if (!targetPrice || targetPrice <= 0) {
+      errEl.textContent = 'Please enter a valid target price.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    if (!token) {
+      const email = emailEl.value.trim();
+      if (!email) { errEl.textContent = 'Please enter your email.'; errEl.style.display = 'block'; return; }
+      // Anonymous alert: redirect to login first
+      showToast('Please sign in to set an alert.', '');
+      setTimeout(() => { window.location.href = '/login'; }, 1200);
+      return;
+    }
+
+    const btn = document.getElementById('btn-modal-save');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    try {
+      const res = await fetch('/api/alerts/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token,
+        },
+        body: JSON.stringify({ product_id: productId, target_price: targetPrice }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        errEl.textContent = data.detail || 'Could not save alert.';
+        errEl.style.display = 'block';
+        return;
+      }
+      closeModal();
+      showToast("Alert set! We'll notify you when the price drops.", 'success');
+    } catch {
+      errEl.textContent = 'Network error. Please try again.';
+      errEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Set Alert';
+    }
+  });
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  loadProduct('week');
+</script>
+</body>
+</html>
