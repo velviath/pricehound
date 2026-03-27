@@ -47,6 +47,47 @@ _HEADERS = {
     "Upgrade-Insecure-Requests": "1",
 }
 
+# Amazon product image selectors + high-res data attributes, in priority order
+_AMAZON_IMAGE_SELECTORS = [
+    ("#landingImage",             ["data-old-hires", "data-a-hires", "src"]),
+    ("#imgBlkFront",              ["data-old-hires", "data-a-hires", "src"]),
+    ("#ebooksImgBlkFront",        ["data-old-hires", "data-a-hires", "src"]),
+    ("#main-image-container img", ["data-old-hires", "src"]),
+    ("#imageBlock img",           ["data-old-hires", "src"]),
+]
+
+_AMAZON_IMAGE_PLACEHOLDER_PATTERNS = [
+    "no-image-available", "grey-video", "transparent-pixel",
+    "sprite", "loading", "amazon-logo", "blank.gif",
+]
+
+
+def _is_amazon_placeholder(url: str) -> bool:
+    u = url.lower()
+    return any(p in u for p in _AMAZON_IMAGE_PLACEHOLDER_PATTERNS)
+
+
+def _extract_amazon_image(soup: BeautifulSoup) -> Optional[str]:
+    """Try Amazon-specific image elements before generic og:image fallback."""
+    for selector, attrs in _AMAZON_IMAGE_SELECTORS:
+        tag = soup.select_one(selector)
+        if not tag:
+            continue
+        for attr in attrs:
+            src = tag.get(attr, "").strip()
+            if src and src.startswith("http") and not _is_amazon_placeholder(src):
+                return src
+
+    # Broader fallback: any img with a high-res data attribute
+    for attr in ("data-old-hires", "data-a-hires"):
+        for tag in soup.find_all("img", {attr: True}):
+            src = tag.get(attr, "").strip()
+            if src and src.startswith("http") and not _is_amazon_placeholder(src):
+                return src
+
+    return None
+
+
 # Amazon CSS selectors in priority order (covers old and new Amazon layouts)
 _AMAZON_PRICE_SELECTORS = [
     "#corePriceDisplay_desktop_feature_div .a-price .a-offscreen",
@@ -308,8 +349,10 @@ async def parse_product(url: str) -> dict:
         raise ValueError(f"Failed to fetch the product page: {exc}")
 
     soup = BeautifulSoup(response.text, "lxml")
-    source = _detect_source(url)
-    is_amazon = "amazon" in (urlparse(url).hostname or "")
+    # Use final URL after redirects (handles short links like amzn.eu/d/…)
+    final_url = str(response.url)
+    source = _detect_source(final_url)
+    is_amazon = "amazon" in (urlparse(final_url).hostname or "")
 
     logger.debug("Page title: %s", soup.title.string if soup.title else "—")
     logger.debug("Response length: %d chars", len(response.text))
@@ -333,7 +376,10 @@ async def parse_product(url: str) -> dict:
         price = _extract_price_regex(soup)
 
     name = _extract_name(soup)
-    image_url = _extract_image(soup, base_url=url)
+    if is_amazon:
+        image_url = _extract_amazon_image(soup) or _extract_image(soup, base_url=final_url)
+    else:
+        image_url = _extract_image(soup, base_url=final_url)
 
     if price is None:
         raise ValueError(

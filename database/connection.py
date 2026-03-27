@@ -71,6 +71,14 @@ CREATE TABLE IF NOT EXISTS price_history (
     price      DECIMAL NOT NULL,
     checked_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS user_products (
+    id         SERIAL PRIMARY KEY,
+    user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(user_id, product_id)
+);
 """
 
 

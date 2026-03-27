@@ -4,15 +4,17 @@ Product API endpoints.
 
 import logging
 from datetime import datetime, timedelta
+
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from auth.utils import get_current_user, get_optional_user
 from database.connection import get_pool
 from database.models import TrackRequest, ProductResponse, PricePoint
 import database.queries as q
 from services.parser import parse_product
-from services.openai_service import get_price_insight
+from services.openai_service import get_price_insight, get_market_analysis
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/products", tags=["products"])
@@ -212,6 +214,119 @@ async def get_history(
         {"price": float(h["price"]), "checked_at": h["checked_at"].isoformat()}
         for h in history
     ]
+
+
+@router.get("/{product_id}/status")
+async def get_product_status(product_id: int):
+    """Lightweight endpoint for live polling — returns current price + last_checked only."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        product = await q.get_product_by_id(conn, product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found.")
+    return {
+        "current_price": float(product["current_price"]) if product["current_price"] else None,
+        "last_checked": product["last_checked"].isoformat() if product["last_checked"] else None,
+    }
+
+
+@router.get("/{product_id}/user-status")
+async def get_user_status(
+    product_id: int,
+    current_user: Optional[dict] = Depends(get_optional_user),
+):
+    """Return the authenticated user's tracking and alert state for this product."""
+    if not current_user:
+        return {"tracking": False, "alert": None}
+
+    user_id = int(current_user["sub"])
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        tracking = await q.get_user_product(conn, user_id, product_id)
+        alert = await q.get_user_alert_for_product(conn, user_id, product_id)
+
+    return {
+        "tracking": tracking is not None,
+        "alert": {
+            "id": alert["id"],
+            "target_price": float(alert["target_price"]),
+            "is_active": alert["is_active"],
+        } if alert else None,
+    }
+
+
+@router.post("/{product_id}/add", status_code=status.HTTP_201_CREATED)
+async def add_product_to_tracking(
+    product_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    """Add a product to the authenticated user's tracking list (no alert required)."""
+    user_id = int(current_user["sub"])
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        product = await q.get_product_by_id(conn, product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found.")
+        await q.add_user_product(conn, user_id, product_id)
+    return {"ok": True}
+
+
+@router.delete("/{product_id}/add", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_product_from_tracking(
+    product_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    """Remove a product from tracking (also deletes any alert for it)."""
+    user_id = int(current_user["sub"])
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        alert = await q.get_user_alert_for_product(conn, user_id, product_id)
+        if alert:
+            await q.delete_alert(conn, alert["id"])
+        await q.remove_user_product(conn, user_id, product_id)
+
+
+@router.post("/{product_id}/refresh")
+async def refresh_product_price(
+    product_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    """Re-parse the product page right now and update the stored price."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        product = await q.get_product_by_id(conn, product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found.")
+        url = str(product["url"])
+
+    try:
+        data = await parse_product(url)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+
+    async with pool.acquire() as conn:
+        if data.get("price"):
+            await q.update_product_price(conn, product_id, data["price"])
+            await q.insert_price_history(conn, product_id, data["price"])
+        product = await q.get_product_by_id(conn, product_id)
+
+    return {
+        "current_price": float(product["current_price"]) if product["current_price"] else None,
+        "last_checked": product["last_checked"].isoformat() if product["last_checked"] else None,
+    }
+
+
+@router.get("/{product_id}/ai-analysis")
+async def get_ai_analysis(product_id: int):
+    """Return seasonal/market buying advice for the product (no history needed)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        product = await q.get_product_by_id(conn, product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found.")
+
+    analysis = await get_market_analysis(product["name"], product_id=product_id)
+    return {"analysis": analysis}
 
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)

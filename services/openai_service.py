@@ -8,6 +8,7 @@ from openai import AsyncOpenAI
 from config import settings
 
 _client: Optional[AsyncOpenAI] = None
+_analysis_cache: dict[int, str] = {}  # product_id → cached market analysis
 
 
 def _get_client() -> AsyncOpenAI:
@@ -15,6 +16,43 @@ def _get_client() -> AsyncOpenAI:
     if _client is None:
         _client = AsyncOpenAI(api_key=settings.openai_api_key)
     return _client
+
+
+async def get_market_analysis(product_name: Optional[str], product_id: Optional[int] = None) -> Optional[str]:
+    """
+    Ask GPT-4o-mini for seasonal/market buying advice based only on the product
+    name. Works immediately — no price history required.
+    Returns None if the API key is not configured or the call fails.
+    """
+    if not settings.openai_api_key or not product_name:
+        return None
+
+    if product_id and product_id in _analysis_cache:
+        return _analysis_cache[product_id]
+
+    prompt = (
+        f"You are a smart shopping assistant. A user is considering buying: \"{product_name}\".\n\n"
+        f"Give them 2-3 sentences of actionable buying advice covering:\n"
+        f"1. When prices for this type of product typically drop "
+        f"(seasonal sales, Prime Day, Black Friday, back-to-school, etc.).\n"
+        f"2. Whether it is generally better to buy now or wait for a specific upcoming sale period.\n"
+        f"Be specific, practical, and direct. Do not use bullet points."
+    )
+
+    try:
+        client = _get_client()
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=180,
+            temperature=0.5,
+        )
+        result = response.choices[0].message.content.strip()
+        if product_id:
+            _analysis_cache[product_id] = result
+        return result
+    except Exception:
+        return None
 
 
 async def get_price_insight(

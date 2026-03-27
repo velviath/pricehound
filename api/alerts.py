@@ -30,6 +30,17 @@ async def create_alert(
         if not product:
             raise HTTPException(status_code=404, detail="Product not found.")
 
+        # Prevent duplicate alerts for the same product
+        existing = await q.get_user_alert_for_product(conn, user_id, body.product_id)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="You already have an alert for this product. Edit or delete it first.",
+            )
+
+        # Ensure the product is in the user's tracking list
+        await q.add_user_product(conn, user_id, body.product_id)
+
         alert = await q.create_alert(conn, user_id, body.product_id, body.target_price)
 
     return AlertResponse(

@@ -179,8 +179,8 @@ async def update_alert_target(conn, alert_id: int, target_price: float) -> None:
 
 async def get_dashboard_data(conn, user_id: int) -> list[asyncpg.Record]:
     """
-    Return products the user tracks, joined with their active alert and
-    the price from 24 hours ago for change calculation.
+    Return all products the user tracks (via user_products), with their
+    optional alert and the price from 24 hours ago for change calculation.
     """
     return await conn.fetch(
         """
@@ -202,10 +202,11 @@ async def get_dashboard_data(conn, user_id: int) -> list[asyncpg.Record]:
                 ORDER BY ph.checked_at ASC
                 LIMIT 1
             ) AS price_24h_ago
-        FROM alerts a
-        JOIN products p ON p.id = a.product_id
-        WHERE a.user_id = $1
-        ORDER BY a.created_at DESC
+        FROM user_products up
+        JOIN products p ON p.id = up.product_id
+        LEFT JOIN alerts a ON a.product_id = p.id AND a.user_id = up.user_id
+        WHERE up.user_id = $1
+        ORDER BY up.created_at DESC
         """,
         user_id,
     )
@@ -229,7 +230,37 @@ async def count_triggered_alerts(conn, user_id: int) -> int:
 
 async def count_product_watchers(conn, product_id: int) -> int:
     row = await conn.fetchrow(
-        "SELECT COUNT(*) FROM alerts WHERE product_id = $1 AND is_active = TRUE",
+        "SELECT COUNT(*) FROM user_products WHERE product_id = $1",
         product_id,
     )
     return row["count"]
+
+
+# ── User products (tracking without alert) ────────────────────────────────────
+
+async def add_user_product(conn, user_id: int, product_id: int) -> None:
+    await conn.execute(
+        "INSERT INTO user_products (user_id, product_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        user_id, product_id,
+    )
+
+
+async def remove_user_product(conn, user_id: int, product_id: int) -> None:
+    await conn.execute(
+        "DELETE FROM user_products WHERE user_id = $1 AND product_id = $2",
+        user_id, product_id,
+    )
+
+
+async def get_user_product(conn, user_id: int, product_id: int) -> Optional[asyncpg.Record]:
+    return await conn.fetchrow(
+        "SELECT * FROM user_products WHERE user_id = $1 AND product_id = $2",
+        user_id, product_id,
+    )
+
+
+async def get_user_alert_for_product(conn, user_id: int, product_id: int) -> Optional[asyncpg.Record]:
+    return await conn.fetchrow(
+        "SELECT * FROM alerts WHERE user_id = $1 AND product_id = $2",
+        user_id, product_id,
+    )

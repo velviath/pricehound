@@ -787,11 +787,11 @@
           </div>
         </div>
         <div class="dash-actions">
-          <button class="btn-icon"
+          ${p.alert_id ? `<button class="btn-icon"
             data-action="edit"
-            data-alert-id="${esc(p.alert_id || '')}"
+            data-alert-id="${esc(p.alert_id)}"
             data-target="${esc(p.target_price || '')}"
-            data-current-price="${esc(p.current_price || '')}">Edit target</button>
+            data-current-price="${esc(p.current_price || '')}">Edit target</button>` : ''}
           <button class="btn-icon danger"
             data-action="delete"
             data-product-id="${p.id}">Delete</button>

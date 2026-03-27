@@ -49,11 +49,14 @@ async def _check_all_prices() -> None:
         price_changed = old_price is None or abs(new_price - old_price) > 0.001
 
         async with pool.acquire() as conn:
+            # Always update price + last_checked so "Checked X ago" stays accurate
+            await q.update_product_price(conn, product_id, new_price)
+            # Always record history so "All checks" chart mode has all data points
+            await q.insert_price_history(conn, product_id, new_price)
+
             if price_changed:
-                await q.update_product_price(conn, product_id, new_price)
-                await q.insert_price_history(conn, product_id, new_price)
                 logger.info(
-                    "Product %d price updated: %.2f → %.2f",
+                    "Product %d price changed: %.2f → %.2f",
                     product_id,
                     old_price or 0,
                     new_price,
