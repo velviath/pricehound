@@ -58,7 +58,8 @@
       color: var(--slate); background: transparent;
       transition: all 0.18s;
     }
-    .btn-nav:hover { border-color: var(--slate); }
+    .btn-nav:hover  { border-color: var(--slate); }
+    .btn-nav:active { transform: scale(0.97); }
 
     /* ── Page ────────────────────────────────────────────── */
     main {
@@ -139,9 +140,10 @@
       border-radius: 100px;
       font-family: inherit; font-size: 12px; font-weight: 600;
       color: var(--slate); background: transparent;
-      cursor: pointer; transition: all 0.16s; white-space: nowrap;
+      cursor: pointer; transition: border-color 0.16s, color 0.16s, background 0.16s, transform 0.12s; white-space: nowrap;
     }
-    .chip:hover { border-color: var(--slate); }
+    .chip:hover  { border-color: var(--slate); }
+    .chip:active { transform: scale(0.94); }
     .chip.active {
       background: var(--slate-dark); color: #fff;
       border-color: var(--slate-dark);
@@ -239,7 +241,8 @@
       background: transparent; color: var(--slate);
       transition: all 0.18s; white-space: nowrap;
     }
-    .btn-icon:hover { border-color: var(--slate); color: var(--slate-dark); }
+    .btn-icon:hover  { border-color: var(--slate); color: var(--slate-dark); }
+    .btn-icon:active { transform: scale(0.97); }
     .btn-icon.danger { border-color: var(--rose-light); color: var(--rose); }
     .btn-icon.danger:hover { border-color: var(--rose); background: var(--rose-light); }
 
@@ -340,15 +343,17 @@
       font-family: inherit; font-size: 14px; font-weight: 700;
       cursor: pointer; transition: opacity 0.2s;
     }
-    .btn-primary:hover { opacity: 0.88; }
+    .btn-primary:hover  { opacity: 0.88; }
+    .btn-primary:active { transform: scale(0.97); opacity: 0.9; }
     .btn-primary.danger { background: var(--rose); }
     .btn-secondary {
       padding: 13px 20px; background: transparent; color: var(--slate);
       border: 1.5px solid var(--slate-light); border-radius: 12px;
       font-family: inherit; font-size: 14px; font-weight: 600;
-      cursor: pointer; transition: border-color 0.2s;
+      cursor: pointer; transition: border-color 0.2s, transform 0.12s;
     }
-    .btn-secondary:hover { border-color: var(--slate); }
+    .btn-secondary:hover  { border-color: var(--slate); }
+    .btn-secondary:active { transform: scale(0.97); }
 
     /* Confirm modal body text */
     .modal-body {
@@ -403,6 +408,10 @@
     .btn-track-bottom:hover {
       opacity: 0.88;
       transform: translateX(-50%) translateY(-2px);
+    }
+    .btn-track-bottom:active {
+      opacity: 0.9;
+      transform: translateX(-50%) scale(0.97);
     }
 
     /* No results in filtered list */

@@ -92,11 +92,21 @@
     /* ── Tabs ────────────────────────────────────────────── */
     .tabs {
       display: flex;
-      gap: 4px;
+      gap: 0;
       background: var(--slate-light);
       border-radius: 12px;
       padding: 4px;
       margin-bottom: 28px;
+      position: relative;
+    }
+    .tab-indicator {
+      position: absolute;
+      top: 4px; height: calc(100% - 8px);
+      background: #fff;
+      border-radius: 9px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      transition: left 0.22s cubic-bezier(0.4,0,0.2,1), width 0.22s cubic-bezier(0.4,0,0.2,1);
+      pointer-events: none; z-index: 0;
     }
     .tab-btn {
       flex: 1;
@@ -109,13 +119,11 @@
       font-weight: 600;
       color: var(--slate);
       cursor: pointer;
-      transition: all 0.2s;
+      transition: color 0.2s, transform 0.12s;
+      position: relative; z-index: 1;
     }
-    .tab-btn.active {
-      background: #fff;
-      color: var(--slate-dark);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
+    .tab-btn.active { color: var(--slate-dark); }
+    .tab-btn:active { transform: scale(0.97); }
 
     /* ── Form ────────────────────────────────────────────── */
     .form-panel { display: none; }
@@ -163,7 +171,7 @@
       margin-top: 8px;
     }
     .btn-primary:hover { opacity: 0.88; }
-    .btn-primary:active { transform: scale(0.98); }
+    .btn-primary:active { transform: scale(0.97); opacity: 0.9; }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .error-msg {
@@ -219,6 +227,7 @@
     <p class="subtitle">Track prices and get notified when they drop.</p>
 
     <div class="tabs">
+      <div class="tab-indicator"></div>
       <button class="tab-btn active" data-tab="login">Sign In</button>
       <button class="tab-btn" data-tab="register">Create Account</button>
     </div>
@@ -270,12 +279,30 @@
     document.getElementById('panel-register').classList.add('active');
   }
 
+  // ── Tab sliding indicator ─────────────────────────────────────────────────
+  function moveTabIndicator(btn) {
+    const ind = document.querySelector('.tab-indicator');
+    if (!ind) return;
+    ind.style.left  = btn.offsetLeft + 'px';
+    ind.style.width = btn.offsetWidth + 'px';
+  }
+
+  // Init without animation
+  const activeTab = document.querySelector('.tab-btn.active');
+  if (activeTab) {
+    const ind = document.querySelector('.tab-indicator');
+    ind.style.transition = 'none';
+    moveTabIndicator(activeTab);
+    requestAnimationFrame(() => { ind.style.transition = ''; });
+  }
+
   // ── Tab switching ─────────────────────────────────────────────────────────
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.form-panel').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
+      moveTabIndicator(btn);
       document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
     });
   });

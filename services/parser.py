@@ -306,13 +306,17 @@ def _extract_image(soup: BeautifulSoup, base_url: str = "") -> Optional[str]:
     return None
 
 
+_AMAZON_DOMAINS = {"amazon", "amzn"}
+
+
 def _detect_source(url: str) -> str:
     host = urlparse(url).hostname or ""
     host = host.removeprefix("www.")
     parts = host.split(".")
-    if len(parts) >= 2:
-        return parts[-2].capitalize()
-    return host.capitalize()
+    name = parts[-2] if len(parts) >= 2 else host
+    if name in _AMAZON_DOMAINS:
+        return "Amazon"
+    return name.capitalize()
 
 
 async def parse_product(url: str) -> dict:
@@ -349,10 +353,11 @@ async def parse_product(url: str) -> dict:
         raise ValueError(f"Failed to fetch the product page: {exc}")
 
     soup = BeautifulSoup(response.text, "lxml")
-    # Use final URL after redirects (handles short links like amzn.eu/d/…)
-    final_url = str(response.url)
-    source = _detect_source(final_url)
-    is_amazon = "amazon" in (urlparse(final_url).hostname or "")
+    # Use original URL for source/amazon detection (final_url may point to ScraperAPI)
+    source = _detect_source(url)
+    _host = (urlparse(url).hostname or "").removeprefix("www.")
+    is_amazon = any(d in _host.split(".") for d in _AMAZON_DOMAINS)
+    final_url = url
 
     logger.debug("Page title: %s", soup.title.string if soup.title else "—")
     logger.debug("Response length: %d chars", len(response.text))

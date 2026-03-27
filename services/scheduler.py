@@ -51,8 +51,9 @@ async def _check_all_prices() -> None:
         async with pool.acquire() as conn:
             # Always update price + last_checked so "Checked X ago" stays accurate
             await q.update_product_price(conn, product_id, new_price)
-            # Always record history so "All checks" chart mode has all data points
-            await q.insert_price_history(conn, product_id, new_price)
+            # Only record history when price actually changed
+            if price_changed:
+                await q.insert_price_history(conn, product_id, new_price)
 
             if price_changed:
                 logger.info(

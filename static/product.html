@@ -38,9 +38,11 @@
     .nav-right { display: flex; gap: 12px; }
     .btn-nav { padding: 9px 20px; border-radius: 10px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; transition: all 0.2s; }
     .btn-nav-outline { background: transparent; border: 1.5px solid var(--slate-light); color: var(--slate); }
-    .btn-nav-outline:hover { border-color: var(--slate); }
+    .btn-nav-outline:hover  { border-color: var(--slate); }
+    .btn-nav-outline:active { transform: scale(0.97); }
     .btn-nav-filled { background: var(--slate-dark); border: none; color: #fff; }
-    .btn-nav-filled:hover { opacity: 0.85; }
+    .btn-nav-filled:hover  { opacity: 0.85; }
+    .btn-nav-filled:active { transform: scale(0.97); opacity: 0.9; }
 
     /* ── Page ────────────────────────────────────────────── */
     main { max-width: 900px; margin: 0 auto; padding: 90px 32px 80px; }
@@ -64,21 +66,28 @@
     .price-current { font-size: 40px; font-weight: 800; color: var(--slate-dark); line-height: 1; }
     .price-old { font-size: 18px; color: var(--slate); text-decoration: line-through; margin-left: 10px; }
     .price-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; padding: 5px 12px; border-radius: 100px; margin-top: 8px; }
-    .price-badge.down { background: var(--sage-light); color: var(--sage); }
-    .price-badge.up   { background: var(--rose-light); color: var(--rose); }
+    .price-badge.down    { background: var(--sage-light);  color: var(--sage); }
+    .price-badge.up      { background: var(--rose-light);  color: var(--rose); }
+    .price-badge.neutral { background: var(--slate-light);  color: var(--slate); }
 
     /* ── Last checked + refresh ──────────────────────────── */
     .price-meta-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
     .last-checked-text { font-size: 12px; color: var(--slate); }
     .btn-refresh {
-      display: inline-flex; align-items: center; gap: 5px;
-      padding: 5px 12px; background: transparent;
+      display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+      padding: 5px 12px; background: transparent; min-width: 105px;
       border: 1.5px solid var(--slate-light); border-radius: 8px;
       font-family: inherit; font-size: 12px; font-weight: 600;
       color: var(--slate); cursor: pointer; transition: border-color 0.2s, color 0.2s;
     }
-    .btn-refresh:hover { border-color: var(--slate); color: var(--slate-dark); }
+    .btn-refresh:hover  { border-color: var(--slate); color: var(--slate-dark); }
+    .btn-refresh:active { transform: scale(0.97); }
     .btn-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
+    .loading-dots { display: inline-flex; align-items: center; gap: 3px; }
+    .loading-dots span { display: inline-block; width: 4px; height: 4px; background: currentColor; border-radius: 50%; animation: dotBounce 1.2s ease-in-out infinite; }
+    .loading-dots span:nth-child(2) { animation-delay: 0.16s; }
+    .loading-dots span:nth-child(3) { animation-delay: 0.32s; }
+    @keyframes dotBounce { 0%, 80%, 100% { transform: translateY(0); opacity: 0.35; } 40% { transform: translateY(-4px); opacity: 1; } }
 
     .watchers { font-size: 13px; color: var(--slate); margin-bottom: 16px; }
     .watchers strong { color: var(--slate-dark); }
@@ -92,18 +101,18 @@
       border: none; border-radius: 14px; font-family: inherit;
       font-size: 15px; font-weight: 700; cursor: pointer; transition: opacity 0.2s, transform 0.15s;
     }
-    .btn-add-primary:hover { opacity: 0.88; }
-    .btn-add-primary:active { transform: scale(0.97); }
+    .btn-add-primary:hover  { opacity: 0.88; }
+    .btn-add-primary:active { transform: scale(0.97); opacity: 0.9; }
     .btn-add-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .btn-delete {
       display: inline-flex; align-items: center; gap: 8px;
       padding: 13px 24px; background: transparent;
-      border: 1.5px solid var(--slate-dark); color: var(--slate-dark);
+      border: 1.5px solid var(--rose); color: var(--rose);
       border-radius: 14px; font-family: inherit;
-      font-size: 15px; font-weight: 700; cursor: pointer; transition: opacity 0.2s, transform 0.15s;
+      font-size: 15px; font-weight: 700; cursor: pointer; transition: background 0.2s, transform 0.15s;
     }
-    .btn-delete:hover { background: var(--slate-light); }
+    .btn-delete:hover { background: var(--rose-light); }
     .btn-delete:active { transform: scale(0.97); }
 
     .btn-secondary-action {
@@ -113,17 +122,18 @@
       font-family: inherit; font-size: 14px; font-weight: 600;
       cursor: pointer; transition: border-color 0.2s, color 0.2s;
     }
-    .btn-secondary-action:hover { border-color: var(--slate); color: var(--slate-dark); }
+    .btn-secondary-action:hover  { border-color: var(--slate); color: var(--slate-dark); }
+    .btn-secondary-action:active { transform: scale(0.97); }
 
-    /* View on site — compact, like original */
     .btn-source {
-      display: inline-flex; align-items: center; gap: 5px;
-      padding: 8px 14px; background: transparent; color: var(--slate);
-      border: 1.5px solid var(--slate-light); border-radius: 10px;
-      font-family: inherit; font-size: 13px; font-weight: 600;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      width: 228px; padding: 13px 20px; background: transparent; color: var(--slate);
+      border: 1.5px solid var(--slate-light); border-radius: 14px;
+      font-family: inherit; font-size: 14px; font-weight: 600;
       cursor: pointer; text-decoration: none; transition: border-color 0.2s, color 0.2s;
     }
-    .btn-source:hover { border-color: var(--slate); color: var(--slate-dark); }
+    .btn-source:hover  { border-color: var(--slate); color: var(--slate-dark); }
+    .btn-source:active { transform: scale(0.97); }
 
     /* ── Chart ───────────────────────────────────────────── */
     .chart-card { background: #fff; border-radius: 20px; padding: 28px; margin-bottom: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
@@ -131,25 +141,44 @@
     .chart-title { font-size: 16px; font-weight: 700; line-height: 1; }
     .chart-controls { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
 
-    .period-tabs { display: flex; gap: 4px; }
+    /* Period tabs — sliding pill */
+    .period-tabs {
+      display: flex; gap: 0; position: relative;
+      background: var(--slate-light); border-radius: 10px; padding: 3px;
+    }
+    .period-indicator {
+      position: absolute; top: 3px; height: calc(100% - 6px);
+      background: var(--slate-dark); border-radius: 7px;
+      transition: left 0.22s cubic-bezier(0.4,0,0.2,1), width 0.22s cubic-bezier(0.4,0,0.2,1);
+      pointer-events: none; z-index: 0;
+    }
     .period-btn {
-      padding: 7px 16px; border: none; background: var(--slate-light);
-      color: var(--slate); border-radius: 8px; font-family: inherit;
-      font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.18s;
+      padding: 7px 16px; border: none; background: transparent;
+      color: var(--slate); border-radius: 7px; font-family: inherit;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: color 0.18s, transform 0.12s; position: relative; z-index: 1;
     }
-    .period-btn.active { background: var(--slate-dark); color: #fff; }
+    .period-btn.active  { color: #fff; }
+    .period-btn:active  { transform: scale(0.94); }
 
-    /* Mode toggle — visually lighter, underline style */
-    .mode-tabs { display: flex; align-items: center; gap: 6px; }
+    /* Mode toggle — sliding underline */
+    .mode-tabs { display: flex; align-items: center; gap: 6px; position: relative; }
     .mode-separator { font-size: 11px; color: var(--slate-light); }
-    .mode-btn {
-      padding: 0 2px 2px; border: none; background: none;
-      color: var(--slate); border-bottom: 2px solid transparent;
-      font-family: inherit; font-size: 11px; font-weight: 600;
-      cursor: pointer; transition: color 0.15s, border-color 0.15s;
+    .mode-indicator {
+      position: absolute; bottom: 0; height: 2px;
+      background: var(--slate-dark); border-radius: 1px;
+      transition: left 0.22s cubic-bezier(0.4,0,0.2,1), width 0.22s cubic-bezier(0.4,0,0.2,1);
+      pointer-events: none;
     }
-    .mode-btn.active { color: var(--slate-dark); border-bottom-color: var(--slate-dark); }
+    .mode-btn {
+      padding: 0 2px 4px; border: none; background: none;
+      color: var(--slate); border-bottom: none;
+      font-family: inherit; font-size: 11px; font-weight: 600;
+      cursor: pointer; transition: color 0.15s, transform 0.12s;
+    }
+    .mode-btn.active { color: var(--slate-dark); }
     .mode-btn:hover  { color: var(--slate-dark); }
+    .mode-btn:active { transform: scale(0.92); }
 
     .chart-wrap { height: 220px; }
 
@@ -223,10 +252,13 @@
 
     .modal-actions { display: flex; gap: 10px; }
     .btn-primary { flex: 1; padding: 13px; background: var(--slate-dark); color: #fff; border: none; border-radius: 12px; font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: opacity 0.2s; }
-    .btn-primary:hover { opacity: 0.88; }
+    .btn-primary:hover  { opacity: 0.88; }
+    .btn-primary:active { transform: scale(0.97); opacity: 0.9; }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-cancel { padding: 13px 20px; background: transparent; color: var(--slate); border: 1.5px solid var(--slate-light); border-radius: 12px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: border-color 0.2s; }
-    .btn-cancel:hover { border-color: var(--slate); }
+    .btn-primary.danger { background: var(--rose); }
+    .btn-cancel { padding: 13px 20px; background: transparent; color: var(--slate); border: 1.5px solid var(--slate-light); border-radius: 12px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: border-color 0.2s, transform 0.12s; }
+    .btn-cancel:hover  { border-color: var(--slate); }
+    .btn-cancel:active { transform: scale(0.97); }
 
     .modal-error { background: var(--rose-light); color: var(--rose); border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px; display: none; }
 
@@ -283,21 +315,24 @@
         <div class="product-source" id="p-source"></div>
         <h1 class="product-name" id="p-name"></h1>
 
-        <div class="price-block">
-          <span class="price-current" id="p-price"></span>
-          <span class="price-old" id="p-price-old" style="display:none;"></span>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px;">
+          <div>
+            <div class="price-block">
+              <span class="price-current" id="p-price"></span>
+              <span class="price-old" id="p-price-old" style="display:none;"></span>
+            </div>
+            <div id="p-change-badge"></div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding-top:4px;">
+            <div class="price-meta-row" id="price-meta-row" style="display:none;">
+              <span id="p-last-checked" class="last-checked-text"></span>
+              <button id="btn-refresh" class="btn-refresh" style="display:none;">Refresh price</button>
+            </div>
+            <p class="watchers" id="p-watchers" style="margin:0;"></p>
+          </div>
         </div>
-        <div id="p-change-badge"></div>
 
-        <div class="price-meta-row" id="price-meta-row" style="display:none;">
-          <span id="p-last-checked" class="last-checked-text"></span>
-          <button id="btn-refresh" class="btn-refresh" style="display:none;">Refresh price</button>
-        </div>
-
-        <p class="watchers" id="p-watchers"></p>
-
-        <div class="action-row" id="action-row"></div>
-
+        <div id="action-row" class="action-row"></div>
         <a class="btn-source" id="btn-source" target="_blank" rel="noopener">↗ View on site</a>
       </div>
     </div>
@@ -308,11 +343,13 @@
         <span class="chart-title">Price History</span>
         <div class="chart-controls">
           <div class="period-tabs">
+            <div class="period-indicator"></div>
             <button class="period-btn active" data-period="week">Week</button>
             <button class="period-btn" data-period="month">Month</button>
             <button class="period-btn" data-period="all">All time</button>
           </div>
           <div class="mode-tabs">
+            <div class="mode-indicator"></div>
             <button class="mode-btn active" data-mode="all">All checks</button>
             <span class="mode-separator">·</span>
             <button class="mode-btn" data-mode="changes">Changes only</button>
@@ -375,11 +412,14 @@
 <!-- Delete confirmation modal -->
 <div class="modal-overlay" id="confirm-modal">
   <div class="modal">
-    <h2 class="modal-title">Stop tracking?</h2>
-    <p class="modal-body-text">This will remove the product from your list. Your price alert (if any) will also be deleted.</p>
+    <h2 class="modal-title">Remove this product?</h2>
+    <p class="modal-body-text">
+      This will remove the product and all its price history from your tracking list.
+      This action cannot be undone.
+    </p>
     <div class="modal-actions">
       <button class="btn-cancel" id="btn-confirm-cancel">Cancel</button>
-      <button class="btn-primary" id="btn-confirm-ok">Delete</button>
+      <button class="btn-primary danger" id="btn-confirm-ok">Remove</button>
     </div>
   </div>
 </div>
@@ -452,6 +492,7 @@
   function renderProduct(p) {
     document.getElementById('skeleton-view').style.display = 'none';
     document.getElementById('product-view').style.display  = 'block';
+    requestAnimationFrame(initIndicators);
 
     const imgWrap = document.getElementById('img-wrap');
     if (p.image_url) {
@@ -473,8 +514,10 @@
       const first = p.price_history[0].price;
       const cur   = p.current_price;
       const pct   = ((cur - first) / first * 100).toFixed(1);
+      const cls   = pct < 0 ? 'down' : pct > 0 ? 'up' : 'neutral';
+      const arrow = pct < 0 ? '↓' : pct > 0 ? '↑' : '→';
       document.getElementById('p-change-badge').innerHTML =
-        `<span class="price-badge ${pct < 0 ? 'down' : 'up'}">${pct < 0 ? '↓' : '↑'} ${Math.abs(pct)}% since tracking began</span>`;
+        `<span class="price-badge ${cls}">${arrow} ${Math.abs(pct)}% since tracking began</span>`;
       const oldEl = document.getElementById('p-price-old');
       if (first !== cur) { oldEl.textContent = '$' + Number(first).toFixed(2); oldEl.style.display = ''; }
     }
@@ -485,7 +528,7 @@
 
     const wc = p.watcher_count || 0;
     document.getElementById('p-watchers').innerHTML =
-      `<strong>${wc}</strong> ${wc === 1 ? 'person' : 'people'} tracking this`;
+      `👁 <strong>${wc}</strong> ${wc === 1 ? 'person' : 'people'} tracking this`;
 
     if (p.ai_insight) {
       document.getElementById('insight-text').textContent   = p.ai_insight;
@@ -532,10 +575,32 @@
     });
   }
 
+  function movePeriodIndicator(btn) {
+    const ind = document.querySelector('.period-indicator');
+    if (!ind) return;
+    ind.style.left  = btn.offsetLeft + 'px';
+    ind.style.width = btn.offsetWidth + 'px';
+  }
+
+  function moveModeIndicator(btn) {
+    const ind = document.querySelector('.mode-indicator');
+    if (!ind) return;
+    ind.style.left  = btn.offsetLeft + 'px';
+    ind.style.width = btn.offsetWidth + 'px';
+  }
+
+  function initIndicators() {
+    const activePeriod = document.querySelector('.period-btn.active');
+    if (activePeriod) { const ind = document.querySelector('.period-indicator'); ind.style.transition = 'none'; movePeriodIndicator(activePeriod); requestAnimationFrame(() => { ind.style.transition = ''; }); }
+    const activeMode = document.querySelector('.mode-btn.active');
+    if (activeMode) { const ind = document.querySelector('.mode-indicator'); ind.style.transition = 'none'; moveModeIndicator(activeMode); requestAnimationFrame(() => { ind.style.transition = ''; }); }
+  }
+
   document.querySelectorAll('.period-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+      movePeriodIndicator(btn);
       await loadProduct(btn.dataset.period);
     });
   });
@@ -544,6 +609,7 @@
     btn.addEventListener('click', () => {
       document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+      moveModeIndicator(btn);
       chartMode = btn.dataset.mode;
       renderChart(filterHistory(rawHistory));
     });
@@ -665,13 +731,13 @@
     const el = document.getElementById('p-watchers');
     if (!el) return;
     const next = Math.max(0, (parseInt(el.querySelector('strong').textContent) || 0) + delta);
-    el.innerHTML = `<strong>${next}</strong> ${next === 1 ? 'person' : 'people'} tracking this`;
+    el.innerHTML = `👁 <strong>${next}</strong> ${next === 1 ? 'person' : 'people'} tracking this`;
   }
 
   // ── Refresh button ─────────────────────────────────────────────────────────
   document.getElementById('btn-refresh').addEventListener('click', async () => {
     const btn = document.getElementById('btn-refresh');
-    btn.disabled = true; btn.textContent = '…';
+    btn.disabled = true; btn.innerHTML = '<span class="loading-dots"><span></span><span></span><span></span></span>';
     try {
       const res = await fetch(`/api/products/${productId}/refresh`, {
         method: 'POST', headers: { 'Authorization': 'Bearer ' + token },
@@ -682,7 +748,7 @@
           document.getElementById('p-price').textContent = '$' + Number(data.current_price).toFixed(2);
         updateLastChecked(data.last_checked);
         showToast('Price updated!', 'success');
-      } else { showToast('Could not refresh price.', 'error'); }
+      } else { const d = await res.json().catch(() => ({})); showToast(d.detail || 'Could not refresh price.', 'error'); }
     } catch { showToast('Network error.', 'error'); }
     finally  { btn.disabled = false; btn.textContent = 'Refresh price'; }
   });

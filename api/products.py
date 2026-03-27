@@ -13,7 +13,7 @@ from auth.utils import get_current_user, get_optional_user
 from database.connection import get_pool
 from database.models import TrackRequest, ProductResponse, PricePoint
 import database.queries as q
-from services.parser import parse_product
+from services.parser import parse_product, _detect_source
 from services.openai_service import get_price_insight, get_market_analysis
 
 logger = logging.getLogger(__name__)
@@ -136,6 +136,13 @@ async def track_product(body: TrackRequest):
         # Re-use existing record if we already track this URL
         existing = await q.get_product_by_url(conn, url)
         if existing:
+            correct_source = _detect_source(url)
+            if existing["source"] != correct_source:
+                await conn.execute(
+                    "UPDATE products SET source=$1 WHERE id=$2",
+                    correct_source, existing["id"],
+                )
+                existing = await q.get_product_by_id(conn, existing["id"])
             history = await q.get_price_history(conn, existing["id"])
             watchers = await q.count_product_watchers(conn, existing["id"])
             return _build_response(existing, history, watchers)

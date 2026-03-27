@@ -84,17 +84,10 @@
       color: #fff;
     }
     .btn-nav-filled:hover { opacity: 0.85; }
-    .btn-nav:active { transform: scale(0.96); }
+    .btn-nav:active         { transform: scale(0.97); }
+    .btn-nav-filled:active  { opacity: 0.9; }
 
-    /* Ripple */
-    .ripple {
-      position: absolute;
-      border-radius: 50%;
-      transform: scale(0);
-      animation: rippleAnim 0.52s ease-out forwards;
-      pointer-events: none;
-    }
-    @keyframes rippleAnim { to { transform: scale(3); opacity: 0; } }
+
 
     /* ── Hero split layout ───────────────────────────────── */
     .hero {
@@ -203,7 +196,7 @@
       gap: 6px;
     }
     .btn-track:hover { opacity: 0.88; }
-    .btn-track:active { transform: scale(0.95); }
+    .btn-track:active { transform: scale(0.97); opacity: 0.9; }
     .btn-track:disabled { opacity: 0.55; cursor: not-allowed; }
 
     /* Animated loading dots */
@@ -520,7 +513,7 @@
       transition: opacity 0.18s, transform 0.12s;
     }
     .btn-currency-yes:hover { opacity: 0.85; }
-    .btn-currency-yes:active { transform: scale(0.96); }
+    .btn-currency-yes:active { transform: scale(0.97); opacity: 0.9; }
     .btn-currency-no {
       padding: 9px 16px;
       background: transparent;
@@ -534,7 +527,7 @@
       transition: border-color 0.18s, transform 0.12s;
     }
     .btn-currency-no:hover  { border-color: var(--slate); }
-    .btn-currency-no:active { transform: scale(0.96); }
+    .btn-currency-no:active { transform: scale(0.97); }
 
     /* ── Responsive ──────────────────────────────────────── */
     @media (max-width: 900px) {
@@ -739,26 +732,6 @@
     btn.href = '/dashboard';
   }
 
-  // ── Ripple effect helper ───────────────────────────────────────────────────
-  function addRipple(el, light) {
-    el.addEventListener('click', function(e) {
-      const rect  = this.getBoundingClientRect();
-      const size  = Math.max(rect.width, rect.height);
-      const r     = document.createElement('span');
-      r.className = 'ripple';
-      r.style.cssText = [
-        `width:${size}px`, `height:${size}px`,
-        `left:${e.clientX - rect.left - size / 2}px`,
-        `top:${e.clientY - rect.top  - size / 2}px`,
-        `background:${light ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.07)'}`,
-      ].join(';');
-      this.appendChild(r);
-      setTimeout(() => r.remove(), 560);
-    });
-  }
-
-  document.querySelectorAll('.btn-nav-filled').forEach(b => addRipple(b, true));
-  document.querySelectorAll('.btn-nav-outline').forEach(b => addRipple(b, false));
 
   // ── Currency detection ─────────────────────────────────────────────────────
   (async function detectCurrency() {
@@ -899,7 +872,7 @@
         return;
       }
 
-      showToast('Product added! Redirecting…', 'success');
+      showToast('Product found! Redirecting…', 'success');
       setTimeout(() => { window.location.href = '/product?id=' + data.id; }, 800);
     } catch {
       hint.textContent = 'Network error. Please check your connection and try again.';
