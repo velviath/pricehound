@@ -8,6 +8,7 @@ from auth.utils import get_current_user
 from database.connection import get_pool
 from database.models import DashboardSummary, DashboardProduct
 import database.queries as q
+from services.parser import _detect_source
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -45,7 +46,8 @@ async def get_dashboard(current_user: dict = Depends(get_current_user)):
                 name=row["name"],
                 image_url=row["image_url"],
                 current_price=current,
-                source=row["source"],
+                currency=row["currency"] or "USD",
+                source=row["source"] if row["source"] and row["source"].lower() not in ("co", "amzn", "www") else _detect_source(str(row["url"])),
                 price_24h_ago=old,
                 change_24h=change_abs,
                 change_24h_pct=change_pct,

@@ -636,7 +636,7 @@
         />
       </div>
       <div class="demo-name">Sony WH-1000XM5 Headphones</div>
-      <div class="demo-price">$279.99</div>
+      <div class="demo-price" id="demo-price-hero">$279.99</div>
       <div class="demo-badge">↓ 12% this month</div>
       <div class="demo-chart-wrap">
         <canvas id="demo-chart"></canvas>
@@ -665,12 +665,12 @@
       </div>
       <div class="grid-card-source">Amazon</div>
       <div class="grid-card-name">Sony WH-1000XM5 Wireless Noise Canceling Headphones</div>
-      <div class="grid-card-price">$279.99</div>
+      <div class="grid-card-price" id="demo-price-0">$279.99</div>
       <div class="grid-card-badge down">↓ 12% this month</div>
       <div class="grid-card-meta">
-        <span>👁 47 watching</span>
+        <span id="demo-meta-0">👁 47 tracking</span>
         <span class="grid-card-meta-sep">·</span>
-        <span>Updated 2h ago</span>
+        <span id="demo-time-0">Updated 2h ago</span>
       </div>
     </a>
 
@@ -687,12 +687,12 @@
       </div>
       <div class="grid-card-source">Amazon</div>
       <div class="grid-card-name">Apple AirPods Pro (2nd Generation) — USB‑C</div>
-      <div class="grid-card-price">$189.99</div>
+      <div class="grid-card-price" id="demo-price-1">$189.99</div>
       <div class="grid-card-badge down">↓ 9% this week</div>
       <div class="grid-card-meta">
-        <span>👁 128 watching</span>
+        <span id="demo-meta-1">👁 128 tracking</span>
         <span class="grid-card-meta-sep">·</span>
-        <span>Updated 1h ago</span>
+        <span id="demo-time-1">Updated 1h ago</span>
       </div>
     </a>
 
@@ -709,12 +709,12 @@
       </div>
       <div class="grid-card-source">Amazon</div>
       <div class="grid-card-name">Kindle Paperwhite (16 GB) — Now with 3 months Kindle Unlimited</div>
-      <div class="grid-card-price">$129.99</div>
-      <div class="grid-card-badge down">↓ 8% this month</div>
+      <div class="grid-card-price" id="demo-price-2">$139.99</div>
+      <div class="grid-card-badge up">↑ 8% this week</div>
       <div class="grid-card-meta">
-        <span>👁 92 watching</span>
+        <span id="demo-meta-2">👁 92 tracking</span>
         <span class="grid-card-meta-sep">·</span>
-        <span>Updated 3h ago</span>
+        <span id="demo-time-2">Updated 3h ago</span>
       </div>
     </a>
 
@@ -758,10 +758,26 @@
     document.getElementById('currency-banner').classList.remove('visible');
   }
 
-  // ── Demo chart (floating card) ─────────────────────────────────────────────
-  (function() {
-    const labels = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
-    const prices = [349, 329, 299, 310, 289, 280];
+  // ── Demo chart (floating card) — fetches real Sony history from API ──────────
+  (async function() {
+    let labels = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+    let prices = [349.99, 329.99, 299.99, 309.99, 289.99, 279.99];
+
+    try {
+      const demos = await fetch('/api/products/demo').then(r => r.ok ? r.json() : null);
+      if (demos && demos[0]?.id) {
+        const hist = await fetch(`/api/products/${demos[0].id}/history?period=6m`).then(r => r.ok ? r.json() : null);
+        if (hist && hist.length >= 2) {
+          // Sample up to 30 evenly-spaced points
+          const step = Math.max(1, Math.ceil(hist.length / 30));
+          const sampled = hist.filter((_, i) => i % step === 0 || i === hist.length - 1);
+          labels = sampled.map(h => new Date(h.checked_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+          prices = sampled.map(h => Number(h.price));
+        }
+      }
+    } catch {}
+
+    const minP = Math.min(...prices), maxP = Math.max(...prices);
     new Chart(document.getElementById('demo-chart').getContext('2d'), {
       type: 'line',
       data: {
@@ -771,9 +787,9 @@
           borderColor: '#5C7A5C',
           backgroundColor: 'rgba(92,122,92,0.08)',
           borderWidth: 2,
-          pointRadius: 5,
+          pointRadius: prices.length > 20 ? 0 : 5,
           pointHoverRadius: 7,
-          hitRadius: 16,              // large invisible hit zone — easy to hover
+          hitRadius: 16,
           pointBackgroundColor: '#5C7A5C',
           fill: true,
           tension: 0.4,
@@ -786,7 +802,7 @@
           legend: { display: false },
           tooltip: {
             enabled: true,
-            caretSize: 0,             // remove arrow — cleaner look, no direction issues
+            caretSize: 0,
             caretPadding: 12,
             backgroundColor: '#2D3748',
             titleColor: 'rgba(255,255,255,0.6)',
@@ -804,14 +820,65 @@
         },
         scales: {
           x: { display: false },
-          y: { display: false, min: 260, max: 370 },
+          y: { display: false, min: minP - (maxP - minP) * 0.15, max: maxP + (maxP - minP) * 0.15 },
         },
       }
     });
   })();
 
+  // ── Currency conversion ─────────────────────────────────────────────────────
+  const CURRENCY_SYMBOLS = {
+    USD: '$', GBP: '£', EUR: '€', CAD: 'CA$',
+    AUD: 'A$', JPY: '¥', CHF: 'Fr ', SEK: 'kr ', NOK: 'kr ', DKK: 'kr '
+  };
+  let _allRates  = {};
+  let _xRate     = null;
+  let _xCurrency = 'USD';
+
+  async function initCurrency() {
+    _xCurrency = localStorage.getItem('ph_currency') || 'USD';
+    try {
+      const r = await fetch('https://open.er-api.com/v6/latest/USD');
+      const d = await r.json();
+      if (d.result === 'success' && d.rates) {
+        _allRates = d.rates;
+        _xRate    = d.rates[_xCurrency] || null;
+      }
+    } catch {}
+  }
+
+  function formatPrice(amount, productCurrency) {
+    if (amount == null) return '—';
+    const n    = Number(amount);
+    const pCur = productCurrency || 'USD';
+    const uCur = _xCurrency      || 'USD';
+    if (pCur === uCur) {
+      const sym = CURRENCY_SYMBOLS[uCur] || (uCur + ' ');
+      return sym + n.toFixed(2);
+    }
+    const pRate = pCur === 'USD' ? 1 : (_allRates[pCur] || 0);
+    const uRate = uCur === 'USD' ? 1 : (_allRates[uCur] || 0);
+    if (!pRate || !uRate) return (CURRENCY_SYMBOLS[pCur] || (pCur + ' ')) + n.toFixed(2);
+    return '~' + (CURRENCY_SYMBOLS[uCur] || (uCur + ' ')) + ((n / pRate) * uRate).toFixed(2);
+  }
+
+  // ── timeAgo helper ─────────────────────────────────────────────────────────
+  function timeAgo(isoStr) {
+    if (!isoStr) return null;
+    const diff = Date.now() - new Date(isoStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const h = Math.floor(mins / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  }
+
   // ── Load demo product IDs and update card links ────────────────────────────
+  const _DEMO_WATCHER_COUNTS = [47, 128, 92];
+
   (async function initDemoCards() {
+    await initCurrency();
     try {
       const res   = await fetch('/api/products/demo');
       if (!res.ok) return;
@@ -819,6 +886,24 @@
       demos.forEach((d, i) => {
         const card = document.getElementById('demo-card-' + i);
         if (card && d.id) card.href = '/product?id=' + d.id;
+
+        const priceEl = document.getElementById('demo-price-' + i);
+        if (priceEl && d.current_price != null)
+          priceEl.textContent = formatPrice(d.current_price, d.currency || 'USD');
+
+        if (i === 0) {
+          const heroEl = document.getElementById('demo-price-hero');
+          if (heroEl && d.current_price != null) heroEl.textContent = formatPrice(d.current_price, d.currency || 'USD');
+        }
+
+        // Use realistic hardcoded watcher counts — real DB count is 0 (no users track demo products)
+        const metaEl = document.getElementById('demo-meta-' + i);
+        if (metaEl)
+          metaEl.textContent = '👁 ' + _DEMO_WATCHER_COUNTS[i] + ' tracking';
+
+        const timeEl = document.getElementById('demo-time-' + i);
+        if (timeEl && d.last_checked)
+          timeEl.textContent = 'Updated ' + (timeAgo(d.last_checked) || 'recently');
       });
     } catch {}
   })();

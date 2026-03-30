@@ -43,6 +43,7 @@ class ProductResponse(BaseModel):
     name: Optional[str]
     image_url: Optional[str]
     current_price: Optional[float]
+    currency: str = "USD"
     source: Optional[str]
     last_checked: Optional[datetime]
     created_at: datetime
@@ -75,6 +76,7 @@ class DashboardProduct(BaseModel):
     name: Optional[str]
     image_url: Optional[str]
     current_price: Optional[float]
+    currency: str = "USD"
     source: Optional[str]
     price_24h_ago: Optional[float]
     change_24h: Optional[float]          # absolute

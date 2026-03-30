@@ -85,6 +85,31 @@ def _extract_amazon_image(soup: BeautifulSoup) -> Optional[str]:
             if src and src.startswith("http") and not _is_amazon_placeholder(src):
                 return src
 
+    # Modern Amazon pages: data-a-dynamic-image contains a JSON map of url → [w, h]
+    for tag in soup.find_all("img", {"data-a-dynamic-image": True}):
+        try:
+            images: dict = json.loads(tag.get("data-a-dynamic-image", "{}"))
+            if images:
+                best = max(
+                    images.keys(),
+                    key=lambda u: (images[u][0] * images[u][1])
+                    if isinstance(images[u], list) and len(images[u]) >= 2
+                    else 0,
+                )
+                if best.startswith("http") and not _is_amazon_placeholder(best):
+                    return best
+        except (json.JSONDecodeError, ValueError, TypeError):
+            pass
+
+    # Last resort: scan inline scripts for hiRes image URL
+    for script in soup.find_all("script"):
+        text = script.string or ""
+        m = re.search(r'"hiRes"\s*:\s*"(https://[^"]+)"', text)
+        if m:
+            url = m.group(1)
+            if not _is_amazon_placeholder(url):
+                return url
+
     return None
 
 
@@ -126,14 +151,16 @@ _PRICE_RE = re.compile(
 
 def _build_fetch_url(url: str) -> str:
     """
-    If SCRAPER_API_KEY is configured, route through ScraperAPI for proxy rotation
-    and bot-protection bypass. render=true is intentionally off — it's slow (30-60s)
-    and costs 5x credits. Proxy rotation alone works for most sites incl. Amazon.
+    If SCRAPER_API_KEY is configured, route through ScraperAPI with JavaScript
+    rendering enabled. render=true makes ScraperAPI launch a real browser so
+    prices loaded via React/Vue/JS are present in the returned HTML.
+    Cost: 5 credits per request (vs 1 without render), but essential for
+    modern e-commerce sites that render prices client-side.
     """
     key = getattr(settings, "scraper_api_key", "")
     if key:
         from urllib.parse import quote
-        return f"http://api.scraperapi.com?api_key={key}&url={quote(url, safe='')}"
+        return f"http://api.scraperapi.com?api_key={key}&render=true&url={quote(url, safe='')}"
     return url
 
 
@@ -156,14 +183,82 @@ def _clean_price(raw: str) -> Optional[float]:
         return None
 
 
-def _extract_from_og(soup: BeautifulSoup) -> Optional[float]:
-    tag = soup.find("meta", property="og:price:amount")
-    if tag and tag.get("content"):
-        return _clean_price(tag["content"])
+def _currency_from_url(url: str) -> Optional[str]:
+    """Infer currency from the URL's TLD (e.g. amazon.co.uk → GBP)."""
+    host = (urlparse(url).hostname or "").lower().removeprefix("www.")
+    # Try progressively shorter suffixes: "co.uk", "uk", etc.
+    parts = host.split(".")
+    for length in (2, 1):
+        if len(parts) >= length:
+            suffix = ".".join(parts[-length:])
+            if suffix in _TLD_CURRENCY:
+                return _TLD_CURRENCY[suffix]
     return None
 
 
-def _extract_from_schema(soup: BeautifulSoup) -> Optional[float]:
+def _detect_page_currency(soup: BeautifulSoup, url: str = "") -> Optional[str]:
+    """
+    Try to determine what currency the page prices are in.
+    Priority: Schema.org priceCurrency → og:price:currency → domain TLD.
+    Returns an ISO-4217 code (e.g. 'GBP', 'EUR') or None.
+
+    NOTE: Schema.org is checked *before* og: because sites like eBay UK set
+    og:price:currency to "USD" (for international bots) while the actual
+    local currency lives in the JSON-LD offer block.
+    """
+    # 1. Schema.org priceCurrency (most reliable for non-US sites)
+    for script in soup.find_all("script", type="application/ld+json"):
+        try:
+            data = json.loads(script.string or "")
+        except (json.JSONDecodeError, TypeError):
+            continue
+        objects = data if isinstance(data, list) else [data]
+        for obj in objects:
+            # Recurse into @graph arrays
+            for item in (obj.get("@graph") or [obj]):
+                offers = item.get("offers", {})
+                if isinstance(offers, list):
+                    offers = offers[0] if offers else {}
+                if isinstance(offers, dict):
+                    pc = offers.get("priceCurrency")
+                    if pc and len(str(pc).strip()) == 3:
+                        return str(pc).strip().upper()
+                # Some sites put priceCurrency at top level
+                pc = item.get("priceCurrency")
+                if pc and len(str(pc).strip()) == 3:
+                    return str(pc).strip().upper()
+
+    # 2. og:price:currency
+    tag = soup.find("meta", property="og:price:currency")
+    if tag and tag.get("content"):
+        c = tag["content"].strip().upper()
+        if len(c) == 3:
+            return c
+
+    # 3. Domain TLD fallback
+    if url:
+        return _currency_from_url(url)
+
+    return None
+
+
+def _extract_from_og(soup: BeautifulSoup) -> tuple[Optional[float], Optional[str]]:
+    """Returns (price, currency) from og: meta tags, or (None, None)."""
+    price_tag = soup.find("meta", property="og:price:amount")
+    curr_tag = soup.find("meta", property="og:price:currency")
+    price = _clean_price(price_tag["content"]) if price_tag and price_tag.get("content") else None
+    curr = (curr_tag["content"].strip().upper()
+            if curr_tag and curr_tag.get("content") and len(curr_tag["content"].strip()) == 3
+            else None)
+    return price, curr
+
+
+def _extract_from_schema(soup: BeautifulSoup) -> tuple[Optional[float], Optional[str]]:
+    """
+    Returns (price, currency) sourced from the *same* JSON-LD offer block.
+    Keeping them paired prevents the eBay-UK bug where og: has USD price and
+    Schema.org has the correct GBP price.
+    """
     for script in soup.find_all("script", type="application/ld+json"):
         try:
             data = json.loads(script.string or "")
@@ -172,29 +267,48 @@ def _extract_from_schema(soup: BeautifulSoup) -> Optional[float]:
 
         objects = data if isinstance(data, list) else [data]
         for obj in objects:
-            if obj.get("@type") == "Offer":
-                price = _clean_price(str(obj.get("price", "")))
-                if price:
-                    return price
-            offers = obj.get("offers")
-            if isinstance(offers, dict):
-                offers = [offers]
-            if isinstance(offers, list):
-                for offer in offers:
-                    price = _clean_price(str(offer.get("price", "")))
+            # Recurse into @graph
+            items = obj.get("@graph") or [obj]
+            for item in items:
+                if item.get("@type") == "Offer":
+                    price = _clean_price(str(item.get("price", "")))
                     if price:
-                        return price
-    return None
+                        curr = item.get("priceCurrency")
+                        return price, (str(curr).strip().upper() if curr and len(str(curr).strip()) == 3 else None)
+
+                offers = item.get("offers")
+                if isinstance(offers, dict):
+                    offers = [offers]
+                if isinstance(offers, list):
+                    for offer in offers:
+                        price = _clean_price(str(offer.get("price", "")))
+                        if price:
+                            curr = offer.get("priceCurrency")
+                            return price, (str(curr).strip().upper() if curr and len(str(curr).strip()) == 3 else None)
+
+    return None, None
 
 
-def _extract_amazon_price(soup: BeautifulSoup) -> Optional[float]:
+_ISO_CURRENCY_RE = re.compile(r'\b(USD|EUR|GBP|CAD|AUD|JPY|CHF|SEK|NOK|DKK|PLN|INR|BRL|MXN|SGD|AED|SAR)\b')
+
+
+def _currency_from_text(text: str) -> Optional[str]:
+    """Extract an ISO-4217 currency code embedded in a price string like 'EUR287.00'."""
+    m = _ISO_CURRENCY_RE.search(text.upper())
+    return m.group(1) if m else None
+
+
+def _extract_amazon_price(soup: BeautifulSoup) -> tuple[Optional[float], Optional[str]]:
+    """Returns (price, currency_or_None) using Amazon-specific CSS selectors."""
     for selector in _AMAZON_PRICE_SELECTORS:
         tag = soup.select_one(selector)
         if tag:
-            price = _clean_price(tag.get_text())
+            text = tag.get_text()
+            price = _clean_price(text)
             if price:
-                return price
-    return None
+                currency = _currency_from_text(text)
+                return price, currency
+    return None, None
 
 
 def _extract_generic_price(soup: BeautifulSoup) -> Optional[float]:
@@ -217,30 +331,64 @@ def _extract_generic_price(soup: BeautifulSoup) -> Optional[float]:
     return None
 
 
-def _extract_price_regex(soup: BeautifulSoup) -> Optional[float]:
+_CURRENCY_SYMBOLS = {"GBP": "£", "EUR": "€", "JPY": "¥", "INR": "₹"}
+
+
+def _extract_price_regex(
+    soup: BeautifulSoup, expected_currency: Optional[str] = None
+) -> Optional[float]:
     """
     Last-resort: scan all visible text nodes for anything that looks like a price.
-    Returns the most commonly occurring price value to filter out noise.
+
+    If expected_currency is set (e.g. 'GBP'), only consider prices that appear
+    with the matching symbol (£) to avoid picking up incidental USD/other prices.
+    Falls back to all candidates if the filtered set is empty.
     """
-    candidates: list[float] = []
-    # Only search in elements likely to contain a product price
+    from collections import Counter
+
+    expected_symbol = _CURRENCY_SYMBOLS.get(expected_currency or "", "") if expected_currency else ""
+
+    # Extended regex that also captures the leading symbol
+    _PRICE_WITH_SYM = re.compile(
+        r'([\$€£¥₹])\s*(\d{1,6}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)'
+        r'|(\d{1,6}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)\s*(USD|EUR|GBP|CAD|AUD)',
+        re.IGNORECASE,
+    )
+
+    matched: list[tuple[float, bool]] = []  # (value, has_expected_symbol)
     for tag in soup.find_all(["span", "p", "div", "strong", "b", "td"]):
         text = tag.get_text(strip=True)
-        if len(text) > 40:  # skip long text blocks
+        if len(text) > 60:
             continue
-        for match in _PRICE_RE.finditer(text):
-            raw = match.group(1) or match.group(2)
+        for m in _PRICE_WITH_SYM.finditer(text):
+            sym = m.group(1) or ""
+            raw = m.group(2) or m.group(3) or ""
             price = _clean_price(raw)
             if price:
-                candidates.append(price)
+                has_match = bool(expected_symbol and sym == expected_symbol)
+                matched.append((price, has_match))
 
-    if not candidates:
+    if not matched:
         return None
 
-    # Return the most frequent candidate (majority vote)
-    from collections import Counter
-    most_common = Counter(candidates).most_common(1)
+    # Prefer candidates whose symbol matches expected currency
+    preferred = [v for v, ok in matched if ok]
+    pool = preferred if preferred else [v for v, _ in matched]
+
+    most_common = Counter(pool).most_common(1)
     return most_common[0][0] if most_common else None
+
+
+def _extract_page_context(soup: BeautifulSoup, max_chars: int = 3000) -> str:
+    """
+    Extract useful visible text from the page for AI analysis.
+    Strips scripts, styles, nav, footer. Returns up to max_chars characters.
+    """
+    for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "iframe"]):
+        tag.decompose()
+    text = soup.get_text(separator="\n", strip=True)
+    lines = [l.strip() for l in text.split("\n") if l.strip() and len(l.strip()) > 3]
+    return "\n".join(lines[:200])[:max_chars]
 
 
 def _extract_name(soup: BeautifulSoup) -> Optional[str]:
@@ -306,17 +454,116 @@ def _extract_image(soup: BeautifulSoup, base_url: str = "") -> Optional[str]:
     return None
 
 
+# Map from URL TLD suffix → ISO-4217 currency.
+# Used as a strong fallback when structured markup doesn't declare a currency.
+_TLD_CURRENCY: dict[str, str] = {
+    "co.uk": "GBP",
+    "de":    "EUR",
+    "fr":    "EUR",
+    "es":    "EUR",
+    "it":    "EUR",
+    "nl":    "EUR",
+    "be":    "EUR",
+    "at":    "EUR",
+    "pl":    "PLN",
+    "se":    "SEK",
+    "no":    "NOK",
+    "dk":    "DKK",
+    "ch":    "CHF",
+    "com.au":"AUD",
+    "ca":    "CAD",
+    "co.jp": "JPY",
+    "jp":    "JPY",
+    "in":    "INR",
+    "com.br":"BRL",
+    "com.mx":"MXN",
+    "sg":    "SGD",
+    "ae":    "AED",
+    "sa":    "SAR",
+}
+
+# Symbol → ISO-4217 code (used to validate/override detected currency from text)
+_SYMBOL_CURRENCY: dict[str, str] = {
+    "£": "GBP",
+    "€": "EUR",
+    "¥": "JPY",
+    "₹": "INR",
+    "A$": "AUD",
+    "C$": "CAD",
+    "CA$": "CAD",
+    "AU$": "AUD",
+}
+
 _AMAZON_DOMAINS = {"amazon", "amzn"}
+
+
+def normalize_amazon_url(url: str) -> str:
+    """
+    Collapse Amazon product URLs to the canonical /dp/{ASIN} form.
+
+    Amazon URLs often contain session tokens, referral tags and other
+    query-string parameters that can expire or change over time, causing
+    future fetches to fail.  The canonical form is stable and always works:
+        https://www.amazon.{tld}/dp/{ASIN}
+
+    Non-Amazon URLs are returned unchanged.
+    """
+    host = (urlparse(url).hostname or "").removeprefix("www.")
+    parts = host.split(".")
+    domain_name = parts[-2] if len(parts) >= 2 else host
+    if domain_name not in _AMAZON_DOMAINS:
+        return url
+
+    asin_match = re.search(r"/(?:dp|gp/product)/([A-Z0-9]{10})", url)
+    if not asin_match:
+        return url
+
+    asin = asin_match.group(1)
+    tld = ".".join(parts[-2:])   # e.g. "amazon.com" or "amazon.co.uk"
+    return f"https://www.{tld}/dp/{asin}"
+
+
+_SECOND_LEVEL_DOMAINS = {"co", "com", "org", "net", "edu", "gov", "ac", "me", "ne"}
 
 
 def _detect_source(url: str) -> str:
     host = urlparse(url).hostname or ""
     host = host.removeprefix("www.")
     parts = host.split(".")
-    name = parts[-2] if len(parts) >= 2 else host
-    if name in _AMAZON_DOMAINS:
+    if any(p in _AMAZON_DOMAINS for p in parts):
         return "Amazon"
+    # Handle multi-part TLDs: ebay.co.uk → ["ebay","co","uk"] → take parts[-3]
+    if len(parts) >= 3 and parts[-2] in _SECOND_LEVEL_DOMAINS:
+        name = parts[-3]
+    elif len(parts) >= 2:
+        name = parts[-2]
+    else:
+        name = host
     return name.capitalize()
+
+
+async def _resolve_url(url: str) -> str:
+    """
+    Follow redirects on the *original* URL (without ScraperAPI) to get the
+    canonical destination. Needed for short links like amzn.eu/d/... that
+    ScraperAPI cannot resolve itself.
+    Returns the final URL, or the original if resolution fails.
+    """
+    short_hosts = {"amzn.eu", "amzn.to", "a.co", "amzn.in", "amzn.asia"}
+    host = (urlparse(url).hostname or "").lower().removeprefix("www.")
+    if host not in short_hosts:
+        return url
+    try:
+        async with httpx.AsyncClient(
+            headers=_HEADERS, follow_redirects=True, timeout=15.0
+        ) as client:
+            resp = await client.head(url)
+            final = str(resp.url)
+            # Normalize the resolved Amazon URL to clean /dp/{ASIN} form
+            return normalize_amazon_url(final)
+    except Exception as exc:
+        logger.warning("Could not resolve short URL %s: %s", url, exc)
+        return url
 
 
 async def parse_product(url: str) -> dict:
@@ -329,13 +576,14 @@ async def parse_product(url: str) -> dict:
     Raises:
         ValueError: with a user-friendly message when parsing fails.
     """
+    url = await _resolve_url(url)
     fetch_url = _build_fetch_url(url)
 
     try:
         async with httpx.AsyncClient(
             headers=_HEADERS,
             follow_redirects=True,
-            timeout=45.0,
+            timeout=90.0,
         ) as client:
             response = await client.get(fetch_url)
             response.raise_for_status()
@@ -353,32 +601,93 @@ async def parse_product(url: str) -> dict:
         raise ValueError(f"Failed to fetch the product page: {exc}")
 
     soup = BeautifulSoup(response.text, "lxml")
-    # Use original URL for source/amazon detection (final_url may point to ScraperAPI)
-    source = _detect_source(url)
-    _host = (urlparse(url).hostname or "").removeprefix("www.")
+
+    # Try to resolve the canonical URL from the page itself.
+    # This is important for short links (amzn.eu) where ScraperAPI may redirect
+    # to a different regional store — the canonical tag tells us the real URL.
+    canonical_tag = soup.find("link", rel="canonical")
+    canonical_url = canonical_tag["href"].strip() if canonical_tag and canonical_tag.get("href") else None
+    effective_url = canonical_url or url
+
+    source = _detect_source(effective_url)
+    _host = (urlparse(effective_url).hostname or "").removeprefix("www.")
     is_amazon = any(d in _host.split(".") for d in _AMAZON_DOMAINS)
-    final_url = url
+    # Also re-run amazon normalization on the resolved URL
+    if is_amazon:
+        url = normalize_amazon_url(effective_url)
+    final_url = effective_url
 
-    logger.debug("Page title: %s", soup.title.string if soup.title else "—")
-    logger.debug("Response length: %d chars", len(response.text))
+    page_title = (soup.title.string or "").strip() if soup.title else ""
+    logger.info("Page title: %s | Response length: %d chars", page_title or "—", len(response.text))
 
-    # ── Price extraction (priority order) ─────────────────────────────────────
+    # Detect bot-block / CAPTCHA / redirect-stub pages early
+    _block_signals = (
+        "robot check", "captcha", "access denied", "enable javascript",
+        "are you a human", "unusual traffic", "verify you are human",
+        "please verify", "security check", "pardon our interruption",
+        "ddos-guard", "cloudflare",
+    )
+    _title_lower = page_title.lower()
+    # Generic store homepages used as redirect stubs (e.g. "Amazon.co.uk", "eBay")
+    _stub_titles = ("amazon.co.uk", "amazon.com", "ebay", "amazon")
+    is_stub_title = _title_lower in _stub_titles or _title_lower == ""
+    if any(s in _title_lower for s in _block_signals) or len(response.text) < 15000 or is_stub_title:
+        raise ValueError(
+            "Please use the link from your browser, not the app. "
+            "It should look like: amazon.co.uk/dp/XXXXXXXXXX"
+        )
+
+    # ── Price + currency extraction ────────────────────────────────────────────
+    # We try to extract price and currency from the *same* structured source so
+    # they always correspond.  The priority order is:
+    #   1. Amazon-specific CSS (currency inferred from domain TLD)
+    #   2. Schema.org JSON-LD  (price + priceCurrency from same offer block)
+    #   3. Open Graph meta     (og:price:amount + og:price:currency)
+    #   4. Generic CSS classes (price only; currency from domain/structured data)
+    #   5. Regex scan          (filtered by expected currency symbol)
+    #
+    # The domain TLD provides a strong currency baseline (e.g. amazon.co.uk → GBP)
+    # that overrides the USD default when no structured currency data is found.
+
     price: Optional[float] = None
+    price_currency: Optional[str] = None  # currency paired with the price source
+
+    # Domain-based currency baseline — use canonical/effective URL so that
+    # amzn.eu short links resolved to amazon.de give EUR, amazon.co.uk gives GBP
+    domain_currency = _currency_from_url(effective_url)
 
     if is_amazon:
-        price = _extract_amazon_price(soup)
+        price, amazon_text_currency = _extract_amazon_price(soup)
+        if price is not None:
+            # Prefer currency extracted from the price text (e.g. "EUR287.00" → EUR),
+            # then fall back to domain TLD (amazon.co.uk → GBP)
+            price_currency = amazon_text_currency or domain_currency
 
+    # Schema.org — try next (before og:) because sites like eBay UK set og: to USD
+    # while Schema.org carries the correct local currency
     if price is None:
-        price = _extract_from_og(soup)
+        price, price_currency = _extract_from_schema(soup)
 
+    # Open Graph — only use if Schema.org didn't provide a price
     if price is None:
-        price = _extract_from_schema(soup)
+        og_price, og_currency = _extract_from_og(soup)
+        if og_price is not None:
+            price = og_price
+            # Accept og: currency only when it agrees with domain OR Schema.org didn't
+            # give us a currency hint.  If domain says GBP but og: says USD, trust domain.
+            if og_currency and (domain_currency is None or og_currency == domain_currency):
+                price_currency = og_currency
+            else:
+                price_currency = price_currency or domain_currency
 
     if price is None:
         price = _extract_generic_price(soup)
 
+    # Best-effort currency: prefer what the price extraction provided, then domain TLD
+    resolved_currency = price_currency or domain_currency
+
     if price is None:
-        price = _extract_price_regex(soup)
+        price = _extract_price_regex(soup, expected_currency=resolved_currency)
 
     name = _extract_name(soup)
     if is_amazon:
@@ -393,9 +702,21 @@ async def parse_product(url: str) -> dict:
             "Add a SCRAPER_API_KEY to your .env to enable support for more sites."
         )
 
+    # Final currency resolution: structured extraction → domain TLD → fallback USD
+    page_currency = resolved_currency or _detect_page_currency(soup, effective_url) or "USD"
+
+    logger.info(
+        "Parsed %s → price=%.2f %s (price_source_currency=%s, domain_currency=%s)",
+        url, price, page_currency, price_currency, domain_currency,
+    )
+
+    page_context = _extract_page_context(soup)
+
     return {
         "name": name,
         "price": price,
+        "currency": page_currency,
         "image_url": image_url,
         "source": source,
+        "page_context": page_context,
     }

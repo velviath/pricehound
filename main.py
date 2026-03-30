@@ -19,6 +19,7 @@ from auth.routes import router as auth_router
 from api.products import router as products_router, seed_demo_products
 from api.alerts import router as alerts_router
 from api.dashboard import router as dashboard_router
+from api.debug import router as debug_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -68,6 +69,7 @@ app.include_router(auth_router)
 app.include_router(products_router)
 app.include_router(alerts_router)
 app.include_router(dashboard_router)
+app.include_router(debug_router)
 
 
 # ── HTML page routes (explicit, so they don't conflict with /static) ──────────

@@ -14,7 +14,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from config import settings
 from database.connection import get_pool
 import database.queries as q
-from services.parser import parse_product
+from services.parser import parse_product, normalize_amazon_url
 from services.email_service import send_alert_email
 
 logger = logging.getLogger(__name__)
@@ -34,13 +34,22 @@ async def _check_all_prices() -> None:
     for product in products:
         product_id = product["id"]
         old_price = float(product["current_price"]) if product["current_price"] else None
+        url = str(product["url"])
+
+        # Normalize Amazon URLs on-the-fly (fixes stale pre-normalization URLs)
+        normalized = normalize_amazon_url(url)
+        if normalized != url:
+            logger.info("Normalizing URL for product %d", product_id)
+            async with pool.acquire() as conn:
+                await conn.execute("UPDATE products SET url=$1 WHERE id=$2", normalized, product_id)
+            url = normalized
 
         try:
-            data = await parse_product(product["url"])
+            data = await parse_product(url)
             new_price = data.get("price")
         except Exception as exc:
             logger.warning("Failed to parse product %d: %s", product_id, exc)
-            continue
+            continue  # no touch_last_checked
 
         if new_price is None:
             continue
@@ -50,7 +59,7 @@ async def _check_all_prices() -> None:
 
         async with pool.acquire() as conn:
             # Always update price + last_checked so "Checked X ago" stays accurate
-            await q.update_product_price(conn, product_id, new_price)
+            await q.update_product_price(conn, product_id, new_price, data.get("currency"), data.get("page_context"))
             # Only record history when price actually changed
             if price_changed:
                 await q.insert_price_history(conn, product_id, new_price)

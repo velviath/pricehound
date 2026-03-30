@@ -98,7 +98,8 @@
       font-size: 14px; font-weight: 600; cursor: pointer;
       text-decoration: none; transition: opacity 0.2s;
     }
-    .btn-add:hover { opacity: 0.85; }
+    .btn-add:hover  { opacity: 0.85; }
+    .btn-add:active { transform: scale(0.97); opacity: 0.9; }
 
     /* ── Filter bar ──────────────────────────────────────── */
     .filter-bar {
@@ -133,21 +134,30 @@
     .search-input:focus { border-color: var(--sage); }
     .search-input::placeholder { color: #A0AEC0; }
 
-    .filter-chips { display: flex; gap: 6px; flex-shrink: 0; }
-    .chip {
-      padding: 7px 14px;
-      border: 1.5px solid var(--slate-light);
+    .filter-chips {
+      display: flex; gap: 0; flex-shrink: 0;
+      position: relative;
+      background: var(--slate-light);
       border-radius: 100px;
+      padding: 3px;
+    }
+    .chip-indicator {
+      position: absolute; top: 3px; height: calc(100% - 6px);
+      background: var(--slate-dark); border-radius: 100px;
+      transition: left 0.22s cubic-bezier(0.4,0,0.2,1), width 0.22s cubic-bezier(0.4,0,0.2,1);
+      pointer-events: none; z-index: 0;
+    }
+    .chip {
+      padding: 7px 14px; border-radius: 100px;
+      border: none; background: transparent;
       font-family: inherit; font-size: 12px; font-weight: 600;
-      color: var(--slate); background: transparent;
-      cursor: pointer; transition: border-color 0.16s, color 0.16s, background 0.16s, transform 0.12s; white-space: nowrap;
+      color: var(--slate); cursor: pointer; white-space: nowrap;
+      position: relative; z-index: 1;
+      transition: color 0.18s, transform 0.12s;
     }
-    .chip:hover  { border-color: var(--slate); }
+    .chip:hover  { color: var(--slate-dark); }
     .chip:active { transform: scale(0.94); }
-    .chip.active {
-      background: var(--slate-dark); color: #fff;
-      border-color: var(--slate-dark);
-    }
+    .chip.active { color: #fff; }
 
     .sort-select {
       padding: 8px 12px;
@@ -188,12 +198,13 @@
     .dash-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.09); }
 
     .dash-img {
-      width: 80px; height: 80px; border-radius: 12px;
-      object-fit: cover; background: var(--slate-light);
-      display: flex; align-items: center; justify-content: center;
+      width: 80px; max-height: 110px; border-radius: 12px;
+      background: var(--slate-light);
       font-size: 28px; flex-shrink: 0; overflow: hidden;
+      align-self: flex-start;
     }
-    .dash-img img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; }
+    .dash-img img { width: 100%; height: auto; max-height: 110px; display: block; object-fit: contain; }
+    .dash-card { cursor: pointer; }
 
     .dash-info { min-width: 0; }
     .dash-source {
@@ -492,6 +503,29 @@
     }
 
     /* ── Responsive ──────────────────────────────────────── */
+    /* ── Approx price hint ───────────────────────────────── */
+    .approx-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 15px; height: 15px; border-radius: 50%;
+      border: 1.5px solid var(--slate); color: var(--slate);
+      font-size: 9px; font-weight: 700; cursor: pointer;
+      background: none; font-family: inherit;
+      vertical-align: middle; margin-left: 5px; flex-shrink: 0;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .approx-btn:hover { border-color: var(--slate-dark); color: var(--slate-dark); }
+    .approx-popup {
+      position: fixed;
+      background: var(--slate-dark); color: #fff;
+      padding: 12px 16px; border-radius: 12px;
+      font-size: 12px; font-weight: 500; line-height: 1.6;
+      max-width: 240px; z-index: 9000;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.22);
+      display: none;
+    }
+    .approx-popup a { color: #a8c5a0; text-decoration: none; font-weight: 600; }
+    .approx-popup a:hover { text-decoration: underline; }
+
     @media (max-width: 700px) {
       .summary-bar { grid-template-columns: 1fr 1fr; }
       .dash-card { grid-template-columns: 64px 1fr; }
@@ -545,6 +579,7 @@
       <input class="search-input" id="search-input" type="text" placeholder="Search products…" />
     </div>
     <div class="filter-chips">
+      <div class="chip-indicator" id="chip-indicator"></div>
       <button class="chip active" data-filter="all">All</button>
       <button class="chip" data-filter="active">Active alerts</button>
       <button class="chip" data-filter="dropped">Price dropped</button>
@@ -586,7 +621,7 @@
     <h2 class="modal-title">Set target price</h2>
     <p class="modal-subtitle" id="edit-current-label">Current price: —</p>
 
-    <label for="edit-price">Target price ($)</label>
+    <label for="edit-price" id="edit-price-label">Target price ($)</label>
     <input type="number" id="edit-price" step="0.01" min="0.01" max="9999" />
     <div class="pct-display zero" id="pct-display">—</div>
 
@@ -619,6 +654,7 @@
   </div>
 </div>
 
+<div id="approx-popup" class="approx-popup"></div>
 <div id="toast-container"></div>
 
 <!-- Onboarding tour -->
@@ -638,6 +674,77 @@
 
   // ── Auth guard ─────────────────────────────────────────────────────────────
   if (!token) window.location.href = '/login';
+
+  // ── Currency conversion ─────────────────────────────────────────────────────
+  const CURRENCY_SYMBOLS = {
+    USD: '$', GBP: '£', EUR: '€', CAD: 'CA$',
+    AUD: 'A$', JPY: '¥', CHF: 'Fr ', SEK: 'kr ', NOK: 'kr ', DKK: 'kr '
+  };
+  let _allRates  = {};
+  let _xRate     = null;
+  let _xCurrency = 'USD';
+
+  async function initCurrency() {
+    _xCurrency = localStorage.getItem('ph_currency') || 'USD';
+    try {
+      const r = await fetch('https://open.er-api.com/v6/latest/USD');
+      const d = await r.json();
+      if (d.result === 'success' && d.rates) {
+        _allRates = d.rates;
+        _xRate    = d.rates[_xCurrency] || null;
+      }
+    } catch {}
+  }
+
+  function formatPrice(amount, productCurrency) {
+    if (amount == null) return '—';
+    const n    = Number(amount);
+    const pCur = productCurrency || 'USD';
+    const uCur = _xCurrency      || 'USD';
+    if (pCur === uCur) {
+      const sym = CURRENCY_SYMBOLS[uCur] || (uCur + ' ');
+      return sym + n.toFixed(2);
+    }
+    const pRate = pCur === 'USD' ? 1 : (_allRates[pCur] || 0);
+    const uRate = uCur === 'USD' ? 1 : (_allRates[uCur] || 0);
+    if (!pRate || !uRate) return (CURRENCY_SYMBOLS[pCur] || (pCur + ' ')) + n.toFixed(2);
+    return '~' + (CURRENCY_SYMBOLS[uCur] || (uCur + ' ')) + ((n / pRate) * uRate).toFixed(2);
+  }
+
+  function isApprox(productCurrency) {
+    const pCur = productCurrency || 'USD';
+    const uCur = _xCurrency      || 'USD';
+    if (pCur === uCur) return false;
+    const pRate = pCur === 'USD' ? 1 : (_allRates[pCur] || 0);
+    const uRate = uCur === 'USD' ? 1 : (_allRates[uCur] || 0);
+    return !!(pRate && uRate);
+  }
+
+  // ── Approx popup ────────────────────────────────────────────────────────────
+  const approxPopup = document.getElementById('approx-popup');
+  document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('approx-btn')) {
+      const rect = e.target.getBoundingClientRect();
+      approxPopup.innerHTML =
+        `We couldn't find the price directly in <strong>${_xCurrency}</strong>, so it was converted from USD<br>using live exchange rates.<br>Actual price on the retailer's site may differ slightly.<br><a href="https://open.er-api.com" target="_blank" rel="noopener">Rates: open.er-api.com ↗</a>`;
+      // Position: above button if near bottom, below otherwise
+      const spaceBelow = window.innerHeight - rect.bottom;
+      if (spaceBelow < 140) {
+        approxPopup.style.top  = '';
+        approxPopup.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+      } else {
+        approxPopup.style.bottom = '';
+        approxPopup.style.top  = (rect.bottom + 8) + 'px';
+      }
+      let left = rect.left;
+      if (left + 240 > window.innerWidth - 12) left = window.innerWidth - 252;
+      approxPopup.style.left   = Math.max(12, left) + 'px';
+      approxPopup.style.display = 'block';
+      e.stopPropagation();
+    } else if (!approxPopup.contains(e.target)) {
+      approxPopup.style.display = 'none';
+    }
+  });
 
   function parseJwt(t) {
     try { return JSON.parse(atob(t.split('.')[1])); } catch { return {}; }
@@ -711,6 +818,7 @@
 
     document.getElementById('list-wrapper').style.display = 'block';
     document.getElementById('filter-bar').style.display   = 'flex';
+    requestAnimationFrame(() => requestAnimationFrame(initChipIndicator));
     filterAndRender();
     startTour(true);
   }
@@ -751,6 +859,7 @@
     chip.addEventListener('click', () => {
       document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
       chip.classList.add('active');
+      moveChipIndicator(chip);
       activeFilter = chip.dataset.filter;
       filterAndRender();
     });
@@ -758,13 +867,30 @@
   document.getElementById('search-input').addEventListener('input', filterAndRender);
   document.getElementById('sort-select').addEventListener('change', filterAndRender);
 
+  function moveChipIndicator(btn) {
+    const ind = document.getElementById('chip-indicator');
+    if (!ind || !btn) return;
+    ind.style.left  = btn.offsetLeft + 'px';
+    ind.style.width = btn.offsetWidth + 'px';
+  }
+
+  function initChipIndicator() {
+    const active = document.querySelector('.chip.active');
+    if (!active) return;
+    const ind = document.getElementById('chip-indicator');
+    if (!ind) return;
+    ind.style.transition = 'none';
+    moveChipIndicator(active);
+    requestAnimationFrame(() => { ind.style.transition = ''; });
+  }
+
   // ── Build card HTML ────────────────────────────────────────────────────────
   function buildCard(p) {
     const imgHtml = p.image_url
       ? `<div class="dash-img"><img src="${esc(p.image_url)}" alt="${esc(p.name || '')}" onerror="this.parentElement.innerHTML='📦'" /></div>`
       : `<div class="dash-img">📦</div>`;
 
-    const priceStr = p.current_price != null ? '$' + Number(p.current_price).toFixed(2) : '—';
+    const priceStr  = formatPrice(p.current_price, p.currency);
     const source   = p.source || sourceFromUrl(p.url);
 
     let changeBadge = '';
@@ -775,13 +901,13 @@
       changeBadge = `<span class="change-badge ${cls}">${arrow} ${Math.abs(pct)}% 24h</span>`;
     }
 
-    const targetStr = p.target_price != null ? '$' + Number(p.target_price).toFixed(2) : '—';
+    const targetStr = formatPrice(p.target_price);
     const alertPill = p.alert_active
-      ? `<span class="alert-pill active">🔔 Active</span>`
+      ? `<span class="alert-pill active">🔔 Alert on</span>`
       : `<span class="alert-pill inactive">Alert off</span>`;
 
     return `
-      <div class="dash-card" data-id="${p.id}">
+      <div class="dash-card" data-id="${p.id}" onclick="if(!event.target.closest('.dash-actions'))location.href='/product?id=${p.id}'">
         ${imgHtml}
         <div class="dash-info">
           <div class="dash-source">${esc(source || 'Unknown')}</div>
@@ -820,19 +946,27 @@
     document.querySelectorAll('[data-action="edit"]').forEach(btn => {
       btn.addEventListener('click', () => {
         editAlertId      = btn.dataset.alertId;
-        editCurrentPrice = parseFloat(btn.dataset.currentPrice) || 0;
-        const target     = parseFloat(btn.dataset.target) || (editCurrentPrice * 0.9);
+        editCurrentPrice = parseFloat(btn.dataset.currentPrice) || 0;  // USD
+        const targetUSD  = parseFloat(btn.dataset.target) || (editCurrentPrice * 0.9);
 
         document.getElementById('edit-current-label').textContent =
-          editCurrentPrice > 0 ? 'Current price: $' + editCurrentPrice.toFixed(2) : 'Current price: unknown';
+          editCurrentPrice > 0 ? 'Current price: ' + formatPrice(editCurrentPrice) : 'Current price: unknown';
+
+        // Update label to show current currency
+        const currSym = CURRENCY_SYMBOLS[_xCurrency] || _xCurrency;
+        document.getElementById('edit-price-label').textContent = `Target price (${currSym})`;
+        const localCurrent = editCurrentPrice * (_xRate || 1);
+        document.getElementById('edit-price').max = Math.ceil(localCurrent * 3) || 9999;
 
         const slider = document.getElementById('edit-slider');
         slider.disabled = (editCurrentPrice <= 0);
 
-        document.getElementById('edit-price').value = target.toFixed(2);
-        updatePctDisplay(target);
-        if (editCurrentPrice > 0) {
-          const pct = Math.round((target / editCurrentPrice - 1) * 100);
+        // Convert stored USD target to local currency for display
+        const targetLocal = targetUSD * (_xRate || 1);
+        document.getElementById('edit-price').value = targetLocal.toFixed(2);
+        updatePctDisplay(targetLocal);
+        if (localCurrent > 0) {
+          const pct = Math.round((targetLocal / localCurrent - 1) * 100);
           slider.value = Math.max(-50, Math.min(50, pct));
           updateSliderThumb(slider);
         }
@@ -853,10 +987,13 @@
     return best !== null ? best : val;
   }
 
-  function updatePctDisplay(targetPrice) {
+  function _localEditCurrentPrice() { return editCurrentPrice * (_xRate || 1); }
+
+  function updatePctDisplay(targetPrice) {  // targetPrice is in local currency
     const el = document.getElementById('pct-display');
-    if (!editCurrentPrice || editCurrentPrice <= 0) { el.textContent = '—'; el.className = 'pct-display zero'; return; }
-    const pct = ((targetPrice / editCurrentPrice) - 1) * 100;
+    const localCurrent = _localEditCurrentPrice();
+    if (!localCurrent || localCurrent <= 0) { el.textContent = '—'; el.className = 'pct-display zero'; return; }
+    const pct = ((targetPrice / localCurrent) - 1) * 100;
     if (Math.abs(pct) < 0.05) {
       el.textContent = 'At current price';
       el.className   = 'pct-display zero';
@@ -879,8 +1016,8 @@
   // Slider → input (live while dragging)
   document.getElementById('edit-slider').addEventListener('input', function() {
     if (!editCurrentPrice) return;
-    const pct    = parseInt(this.value);
-    const price  = editCurrentPrice * (1 + pct / 100);
+    const localCurrent = _localEditCurrentPrice();
+    const price = localCurrent * (1 + parseInt(this.value) / 100);
     document.getElementById('edit-price').value = Math.max(0.01, price).toFixed(2);
     updatePctDisplay(price);
     updateSliderThumb(this);
@@ -891,7 +1028,8 @@
     const snapped = snapToNearest(parseInt(this.value));
     this.value = snapped;
     if (editCurrentPrice) {
-      const price = editCurrentPrice * (1 + snapped / 100);
+      const localCurrent = _localEditCurrentPrice();
+      const price = localCurrent * (1 + snapped / 100);
       document.getElementById('edit-price').value = Math.max(0.01, price).toFixed(2);
       updatePctDisplay(price);
     }
@@ -903,9 +1041,9 @@
     const price = parseFloat(this.value);
     updatePctDisplay(isNaN(price) ? 0 : price);
     if (!editCurrentPrice || isNaN(price)) return;
-    const pct = Math.round((price / editCurrentPrice - 1) * 100);
+    const localCurrent = _localEditCurrentPrice();
     const slider = document.getElementById('edit-slider');
-    slider.value = Math.max(-50, Math.min(50, pct));
+    slider.value = Math.max(-50, Math.min(50, Math.round((price / localCurrent - 1) * 100)));
     updateSliderThumb(slider);
   });
 
@@ -927,9 +1065,11 @@
   // Edit modal — cancel / save
   document.getElementById('btn-edit-cancel').addEventListener('click', () => closeModal('edit-modal'));
   document.getElementById('btn-edit-save').addEventListener('click', async () => {
-    const price = parseFloat(document.getElementById('edit-price').value);
-    if (!price || price <= 0 || price > 9999) { showToast('Enter a valid price (0–$9,999).', 'error'); return; }
+    const priceLocal = parseFloat(document.getElementById('edit-price').value);
+    if (!priceLocal || priceLocal <= 0) { showToast('Enter a valid target price.', 'error'); return; }
     if (!editAlertId) { showToast('No alert selected.', 'error'); return; }
+    // Convert local currency back to USD for storage
+    const price = priceLocal / (_xRate || 1);
     try {
       const res = await fetch(`/api/alerts/${editAlertId}/target?target_price=${price}`, {
         method: 'PATCH', headers: { 'Authorization': 'Bearer ' + token },
@@ -1100,7 +1240,10 @@
   });
 
   // ── Init ───────────────────────────────────────────────────────────────────
-  loadDashboard();
+  (async () => {
+    await initCurrency();
+    loadDashboard();
+  })();
 </script>
 </body>
 </html>

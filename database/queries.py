@@ -35,14 +35,16 @@ async def create_product(
     image_url: Optional[str],
     current_price: Optional[float],
     source: Optional[str],
+    currency: str = "USD",
+    page_context: Optional[str] = None,
 ) -> asyncpg.Record:
     return await conn.fetchrow(
         """
-        INSERT INTO products (url, name, image_url, current_price, source, last_checked)
-        VALUES ($1, $2, $3, $4, $5, NOW())
+        INSERT INTO products (url, name, image_url, current_price, source, currency, page_context, last_checked)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
         RETURNING *
         """,
-        url, name, image_url, current_price, source,
+        url, name, image_url, current_price, source, currency, page_context,
     )
 
 
@@ -60,11 +62,35 @@ async def get_all_products(conn) -> list[asyncpg.Record]:
 
 
 async def update_product_price(
-    conn, product_id: int, price: float
+    conn, product_id: int, price: float, currency: Optional[str] = None,
+    page_context: Optional[str] = None,
 ) -> None:
+    if currency and page_context:
+        await conn.execute(
+            "UPDATE products SET current_price=$1, currency=$2, page_context=$3, last_checked=NOW() WHERE id=$4",
+            price, currency, page_context, product_id,
+        )
+    elif currency:
+        await conn.execute(
+            "UPDATE products SET current_price=$1, currency=$2, last_checked=NOW() WHERE id=$3",
+            price, currency, product_id,
+        )
+    elif page_context:
+        await conn.execute(
+            "UPDATE products SET current_price=$1, page_context=$2, last_checked=NOW() WHERE id=$3",
+            price, page_context, product_id,
+        )
+    else:
+        await conn.execute(
+            "UPDATE products SET current_price=$1, last_checked=NOW() WHERE id=$2",
+            price, product_id,
+        )
+
+
+async def touch_last_checked(conn, product_id: int) -> None:
     await conn.execute(
-        "UPDATE products SET current_price = $1, last_checked = NOW() WHERE id = $2",
-        price, product_id,
+        "UPDATE products SET last_checked = NOW() WHERE id = $1",
+        product_id,
     )
 
 
@@ -190,6 +216,7 @@ async def get_dashboard_data(conn, user_id: int) -> list[asyncpg.Record]:
             p.name,
             p.image_url,
             p.current_price,
+            p.currency,
             p.source,
             a.id          AS alert_id,
             a.target_price,

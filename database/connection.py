@@ -86,3 +86,10 @@ async def init_db(pool: asyncpg.Pool) -> None:
     """Run DDL to create tables if they don't exist yet."""
     async with pool.acquire() as conn:
         await conn.execute(CREATE_TABLES_SQL)
+        # Migrations — idempotent ALTER TABLE statements for schema evolution
+        await conn.execute(
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'USD';"
+        )
+        await conn.execute(
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS page_context TEXT;"
+        )

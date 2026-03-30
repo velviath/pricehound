@@ -47,6 +47,28 @@
     /* ── Page ────────────────────────────────────────────── */
     main { max-width: 900px; margin: 0 auto; padding: 90px 32px 80px; }
 
+    /* ── Approx price hint ───────────────────────────────── */
+    .approx-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 1.5px solid var(--slate); color: var(--slate);
+      font-size: 10px; font-weight: 700; cursor: pointer;
+      background: none; font-family: inherit; flex-shrink: 0;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .approx-btn:hover { border-color: var(--slate-dark); color: var(--slate-dark); }
+    .approx-popup {
+      position: fixed;
+      background: var(--slate-dark); color: #fff;
+      padding: 12px 16px; border-radius: 12px;
+      font-size: 12px; font-weight: 500; line-height: 1.6;
+      max-width: 240px; z-index: 9000;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.22);
+      display: none;
+    }
+    .approx-popup a { color: #a8c5a0; text-decoration: none; font-weight: 600; }
+    .approx-popup a:hover { text-decoration: underline; }
+
     /* Skeleton */
     .skeleton { background: linear-gradient(90deg, #ece9e6 25%, #f4f1ee 50%, #ece9e6 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 8px; }
     @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
@@ -54,8 +76,8 @@
     /* ── Product header ──────────────────────────────────── */
     .product-header { display: grid; grid-template-columns: 260px 1fr; gap: 40px; margin-bottom: 40px; }
 
-    .product-img-wrap { aspect-ratio: 1; border-radius: 20px; overflow: hidden; background: var(--slate-light); display: flex; align-items: center; justify-content: center; }
-    .product-img { width: 100%; height: 100%; object-fit: cover; }
+    .product-img-wrap { width: 260px; max-height: 340px; border-radius: 20px; overflow: hidden; background: var(--slate-light); flex-shrink: 0; align-self: flex-start; }
+    .product-img { width: 100%; height: auto; max-height: 340px; display: block; object-fit: contain; }
     .product-img-placeholder { font-size: 72px; }
 
     .product-info { display: flex; flex-direction: column; justify-content: center; }
@@ -93,7 +115,8 @@
     .watchers strong { color: var(--slate-dark); }
 
     /* ── Action buttons ──────────────────────────────────── */
-    .action-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
+    .action-col { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; width: fit-content; }
+    .action-row { display: flex; flex-wrap: nowrap; gap: 10px; align-items: center; }
 
     .btn-add-primary {
       display: inline-flex; align-items: center; gap: 8px;
@@ -107,13 +130,13 @@
 
     .btn-delete {
       display: inline-flex; align-items: center; gap: 8px;
-      padding: 13px 24px; background: transparent;
-      border: 1.5px solid var(--rose); color: var(--rose);
+      padding: 13px 24px; background: var(--rose);
+      border: 1.5px solid var(--rose); color: #fff;
       border-radius: 14px; font-family: inherit;
-      font-size: 15px; font-weight: 700; cursor: pointer; transition: background 0.2s, transform 0.15s;
+      font-size: 15px; font-weight: 700; cursor: pointer; transition: opacity 0.2s, transform 0.15s;
     }
-    .btn-delete:hover { background: var(--rose-light); }
-    .btn-delete:active { transform: scale(0.97); }
+    .btn-delete:hover  { opacity: 0.88; }
+    .btn-delete:active { transform: scale(0.97); opacity: 0.9; }
 
     .btn-secondary-action {
       display: inline-flex; align-items: center; gap: 6px;
@@ -127,7 +150,7 @@
 
     .btn-source {
       display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-      width: 228px; padding: 13px 20px; background: transparent; color: var(--slate);
+      padding: 13px 20px; background: transparent; color: var(--slate);
       border: 1.5px solid var(--slate-light); border-radius: 14px;
       font-family: inherit; font-size: 14px; font-weight: 600;
       cursor: pointer; text-decoration: none; transition: border-color 0.2s, color 0.2s;
@@ -315,15 +338,21 @@
         <div class="product-source" id="p-source"></div>
         <h1 class="product-name" id="p-name"></h1>
 
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px;">
-          <div>
-            <div class="price-block">
-              <span class="price-current" id="p-price"></span>
-              <span class="price-old" id="p-price-old" style="display:none;"></span>
-            </div>
-            <div id="p-change-badge"></div>
+        <div style="margin-bottom:16px;">
+          <div class="price-block" style="display:flex;align-items:center;gap:8px;">
+            <span class="price-current" id="p-price"></span>
+            <span class="price-old" id="p-price-old" style="display:none;"></span>
+            <button class="approx-btn" id="p-approx-btn" style="display:none;" aria-label="Price approximation info">?</button>
           </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding-top:4px;">
+          <div id="p-change-badge"></div>
+        </div>
+
+        <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;margin-bottom:10px;">
+          <div class="action-col" style="margin-bottom:0;">
+            <div id="action-row" class="action-row"></div>
+            <a class="btn-source" id="btn-source" target="_blank" rel="noopener">↗ View on site</a>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
             <div class="price-meta-row" id="price-meta-row" style="display:none;">
               <span id="p-last-checked" class="last-checked-text"></span>
               <button id="btn-refresh" class="btn-refresh" style="display:none;">Refresh price</button>
@@ -331,9 +360,6 @@
             <p class="watchers" id="p-watchers" style="margin:0;"></p>
           </div>
         </div>
-
-        <div id="action-row" class="action-row"></div>
-        <a class="btn-source" id="btn-source" target="_blank" rel="noopener">↗ View on site</a>
       </div>
     </div>
 
@@ -357,6 +383,9 @@
         </div>
       </div>
       <div class="chart-wrap"><canvas id="price-chart"></canvas></div>
+      <p id="chart-demo-note" style="display:none; font-size:11px; color:var(--slate); text-align:center; margin-top:10px; font-style:italic; opacity:0.75;">
+        Sample data for illustration — prices are not real.
+      </p>
     </div>
 
     <!-- AI Insight -->
@@ -393,7 +422,7 @@
     <h2 class="modal-title" id="modal-title">Set target price</h2>
     <p class="modal-subtitle" id="modal-subtitle">Current price: —</p>
     <div class="modal-error" id="modal-error"></div>
-    <label for="alert-price">Target price ($)</label>
+    <label for="alert-price" id="alert-price-label">Target price ($)</label>
     <input type="number" id="alert-price" step="0.01" min="0.01" max="9999" />
     <div class="pct-display zero" id="pct-display">—</div>
     <div class="slider-wrap">
@@ -411,7 +440,7 @@
 
 <!-- Delete confirmation modal -->
 <div class="modal-overlay" id="confirm-modal">
-  <div class="modal">
+  <div class="modal" style="max-width:400px;">
     <h2 class="modal-title">Remove this product?</h2>
     <p class="modal-body-text">
       This will remove the product and all its price history from your tracking list.
@@ -424,6 +453,7 @@
   </div>
 </div>
 
+<div id="approx-popup" class="approx-popup"></div>
 <div id="toast-container"></div>
 
 <script>
@@ -431,13 +461,107 @@
   const productId = parseInt(params.get('id'));
   const token     = localStorage.getItem('ph_token');
 
+  const DEMO_PRODUCT_URLS = new Set([
+    'https://www.amazon.com/dp/B09XS7JWHH',
+    'https://www.amazon.com/dp/B0BDHWDR12',
+    'https://www.amazon.com/dp/B09TMF6741',
+  ]);
+
+  const DEMO_WATCHER_COUNTS = {
+    'https://www.amazon.com/dp/B09XS7JWHH': 47,
+    'https://www.amazon.com/dp/B0BDHWDR12': 128,
+    'https://www.amazon.com/dp/B09TMF6741': 92,
+  };
+
   let priceChart        = null;
   let productData       = null;
   let rawHistory        = [];
   let chartMode         = 'all';
+  let currentPeriod     = 'week';
   let userStatus        = null;
   let alertMode         = 'set';
   let alertCurrentPrice = 0;
+
+  // ── Currency conversion ─────────────────────────────────────────────────────
+  const CURRENCY_SYMBOLS = {
+    USD: '$', GBP: '£', EUR: '€', CAD: 'CA$',
+    AUD: 'A$', JPY: '¥', CHF: 'Fr ', SEK: 'kr ', NOK: 'kr ', DKK: 'kr '
+  };
+  let _allRates  = {};
+  let _xRate     = null;
+  let _xCurrency = 'USD';
+
+  async function initCurrency() {
+    _xCurrency = localStorage.getItem('ph_currency') || 'USD';
+    try {
+      const r = await fetch('https://open.er-api.com/v6/latest/USD');
+      const d = await r.json();
+      if (d.result === 'success' && d.rates) {
+        _allRates = d.rates;
+        _xRate    = d.rates[_xCurrency] || null;
+      }
+    } catch {}
+  }
+
+  // productCurrency: the currency the price is stored in (from DB)
+  function formatPrice(amount, productCurrency) {
+    if (amount == null) return '—';
+    const n    = Number(amount);
+    const pCur = productCurrency || 'USD';
+    const uCur = _xCurrency      || 'USD';
+    // Same currency — display directly, no conversion needed
+    if (pCur === uCur) {
+      const sym = CURRENCY_SYMBOLS[uCur] || (uCur + ' ');
+      return sym + n.toFixed(2);
+    }
+    // Cross-rate: pCur → USD → uCur
+    const pRate = pCur === 'USD' ? 1 : (_allRates[pCur] || 0);
+    const uRate = uCur === 'USD' ? 1 : (_allRates[uCur] || 0);
+    if (!pRate || !uRate) {
+      // Rates not loaded — fall back to product's own currency
+      const sym = CURRENCY_SYMBOLS[pCur] || (pCur + ' ');
+      return sym + n.toFixed(2);
+    }
+    const converted = (n / pRate) * uRate;
+    const sym = CURRENCY_SYMBOLS[uCur] || (uCur + ' ');
+    return '~' + sym + converted.toFixed(2);
+  }
+
+  function isApprox(productCurrency) {
+    const pCur = productCurrency || 'USD';
+    const uCur = _xCurrency      || 'USD';
+    if (pCur === uCur) return false;
+    const pRate = pCur === 'USD' ? 1 : (_allRates[pCur] || 0);
+    const uRate = uCur === 'USD' ? 1 : (_allRates[uCur] || 0);
+    return !!(pRate && uRate);
+  }
+
+  // ── Approx popup ────────────────────────────────────────────────────────────
+  const approxPopup = document.getElementById('approx-popup');
+  document.getElementById('p-approx-btn').addEventListener('click', (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pCur = productData?.currency || 'USD';
+    const _REGIONAL = { GBP:'.co.uk', EUR:'.de / .fr', CAD:'.ca', AUD:'.com.au', JPY:'.co.jp' };
+    const _regionalTip = _REGIONAL[_xCurrency] ? `<br>For exact prices, use <strong>${_REGIONAL[_xCurrency]}</strong> links.` : '';
+    approxPopup.innerHTML =
+      `Priced in <strong>${pCur}</strong>, shown in <strong>${_xCurrency}</strong>.${_regionalTip}<br><a href="https://www.exchangerate-api.com" target="_blank" rel="noopener">Live rates source ↗</a>`;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    if (spaceBelow < 140) {
+      approxPopup.style.top    = '';
+      approxPopup.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+    } else {
+      approxPopup.style.bottom = '';
+      approxPopup.style.top    = (rect.bottom + 8) + 'px';
+    }
+    let left = rect.left;
+    if (left + 240 > window.innerWidth - 12) left = window.innerWidth - 252;
+    approxPopup.style.left    = Math.max(12, left) + 'px';
+    approxPopup.style.display = 'block';
+    e.stopPropagation();
+  });
+  document.addEventListener('click', (e) => {
+    if (!approxPopup.contains(e.target)) approxPopup.style.display = 'none';
+  });
 
   // ── Navbar ─────────────────────────────────────────────────────────────────
   if (token) {
@@ -483,6 +607,16 @@
     } catch { showError(); }
   }
 
+  async function loadHistoryOnly(period) {
+    if (!productId) return;
+    try {
+      const res = await fetch(`/api/products/${productId}/history?period=${period}`);
+      if (!res.ok) return;
+      rawHistory = await res.json();
+      renderChart(filterHistory(rawHistory));
+    } catch {}
+  }
+
   function showError() {
     document.getElementById('skeleton-view').style.display = 'none';
     document.getElementById('product-view').style.display  = 'none';
@@ -492,7 +626,7 @@
   function renderProduct(p) {
     document.getElementById('skeleton-view').style.display = 'none';
     document.getElementById('product-view').style.display  = 'block';
-    requestAnimationFrame(initIndicators);
+    requestAnimationFrame(() => requestAnimationFrame(initIndicators));
 
     const imgWrap = document.getElementById('img-wrap');
     if (p.image_url) {
@@ -508,7 +642,9 @@
     document.getElementById('btn-source').href = p.url;
 
     document.getElementById('p-price').textContent =
-      p.current_price != null ? '$' + Number(p.current_price).toFixed(2) : '—';
+      p.current_price != null ? formatPrice(p.current_price, p.currency) : '—';
+    document.getElementById('p-approx-btn').style.display =
+      (p.current_price != null && isApprox(p.currency)) ? '' : 'none';
 
     if (p.price_history && p.price_history.length > 1) {
       const first = p.price_history[0].price;
@@ -519,14 +655,14 @@
       document.getElementById('p-change-badge').innerHTML =
         `<span class="price-badge ${cls}">${arrow} ${Math.abs(pct)}% since tracking began</span>`;
       const oldEl = document.getElementById('p-price-old');
-      if (first !== cur) { oldEl.textContent = '$' + Number(first).toFixed(2); oldEl.style.display = ''; }
+      if (first !== cur) { oldEl.textContent = formatPrice(first, p.currency); oldEl.style.display = ''; }
     }
 
     updateLastChecked(p.last_checked);
     document.getElementById('price-meta-row').style.display = 'flex';
     document.getElementById('btn-refresh').style.display    = token ? '' : 'none';
 
-    const wc = p.watcher_count || 0;
+    const wc = DEMO_WATCHER_COUNTS[p.url] ?? p.watcher_count ?? 0;
     document.getElementById('p-watchers').innerHTML =
       `👁 <strong>${wc}</strong> ${wc === 1 ? 'person' : 'people'} tracking this`;
 
@@ -534,6 +670,9 @@
       document.getElementById('insight-text').textContent   = p.ai_insight;
       document.getElementById('insight-card').style.display = 'flex';
     }
+
+    const note = document.getElementById('chart-demo-note');
+    if (note) note.style.display = (DEMO_PRODUCT_URLS.has(p.url)) ? 'block' : 'none';
   }
 
   function updateLastChecked(isoStr) {
@@ -550,26 +689,69 @@
     );
   }
 
+  function niceStep(range, maxTicks) {
+    if (range <= 0) return 5;
+    const raw = range / maxTicks;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const norm = raw / mag;
+    let s;
+    if (norm < 1.5) s = 1;
+    else if (norm < 3.5) s = 2;
+    else if (norm < 7.5) s = 5;
+    else s = 10;
+    // Always round up to nearest multiple of 5
+    return Math.max(5, Math.ceil((s * mag) / 5) * 5);
+  }
+
   function renderChart(history) {
-    const labels = history.map(h =>
+    const MAX_POINTS = 100;
+    let displayHistory = history;
+    if (history.length > MAX_POINTS) {
+      const s = Math.ceil(history.length / MAX_POINTS);
+      displayHistory = history.filter((_, i) => i % s === 0 || i === history.length - 1);
+    }
+    const labels = displayHistory.map(h =>
       new Date(h.checked_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     );
-    const data = history.map(h => Number(h.price));
+
+    // Pre-convert all prices to user display currency so y-axis ticks are clean multiples of 5
+    const pCur   = productData?.currency || 'USD';
+    const uCur   = _xCurrency || 'USD';
+    const pRate  = pCur === 'USD' ? 1 : (_allRates[pCur] || 0);
+    const uRate  = uCur === 'USD' ? 1 : (_allRates[uCur] || 0);
+    const needsConv = pCur !== uCur && pRate && uRate;
+    const toDisp    = n => needsConv ? (n / pRate) * uRate : n;
+    const dispSym   = CURRENCY_SYMBOLS[uCur] || CURRENCY_SYMBOLS[pCur] || (pCur + ' ');
+    const prefix    = (needsConv ? '~' : '') + dispSym;
+
+    const data = displayHistory.map(h => toDisp(Number(h.price)));
+    const pointRadius = displayHistory.length > 30 ? 0 : 4;
+    const pointHoverRadius = displayHistory.length > 30 ? 4 : 6;
+
+    const minP = data.length ? Math.min(...data) : 0;
+    const maxP = data.length ? Math.max(...data) : 100;
+    const range = maxP - minP;
+    const step  = niceStep(range || maxP * 0.1, 5);
+    const yMin  = Math.max(0, Math.floor(minP / step) * step - step);  // one extra tick below min
+    const yMax  = Math.ceil(maxP  / step) * step + step;               // one extra tick above max
+
     if (priceChart) priceChart.destroy();
     const ctx = document.getElementById('price-chart').getContext('2d');
     priceChart = new Chart(ctx, {
       type: 'line',
-      data: { labels, datasets: [{ label: 'Price', data, borderColor: '#5C7A5C', backgroundColor: 'rgba(92,122,92,0.08)', borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: '#5C7A5C', pointHoverRadius: 6, fill: true, tension: 0.35 }] },
+      data: { labels, datasets: [{ label: 'Price', data, borderColor: '#5C7A5C', backgroundColor: 'rgba(92,122,92,0.08)', borderWidth: 2.5, pointRadius, pointBackgroundColor: '#5C7A5C', pointHoverRadius, fill: true, tension: 0.35 }] },
       options: {
         responsive: true, maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { display: false },
-          tooltip: { backgroundColor: '#2D3748', padding: 12, cornerRadius: 10, callbacks: { label: ctx => ' $' + ctx.parsed.y.toFixed(2) } }
+          tooltip: { backgroundColor: '#2D3748', padding: 12, cornerRadius: 10, callbacks: { label: c => ' ' + prefix + Number(c.parsed.y).toFixed(2) } }
         },
         scales: {
-          x: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { family: 'Plus Jakarta Sans', size: 12 }, color: '#4A5568' } },
-          y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { family: 'Plus Jakarta Sans', size: 12 }, color: '#4A5568', callback: v => '$' + v.toFixed(2) } }
+          x: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { family: 'Plus Jakarta Sans', size: 12 }, color: '#4A5568', maxTicksLimit: 8, maxRotation: 0 } },
+          y: { min: yMin, max: yMax, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { stepSize: step, font: { family: 'Plus Jakarta Sans', size: 12 }, color: '#4A5568',
+            callback: v => prefix + Math.round(Number(v))
+          } }
         }
       }
     });
@@ -601,7 +783,8 @@
       document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       movePeriodIndicator(btn);
-      await loadProduct(btn.dataset.period);
+      currentPeriod = btn.dataset.period;
+      await loadHistoryOnly(currentPeriod);
     });
   });
 
@@ -622,17 +805,35 @@
       const res = await fetch(`/api/products/${productId}/status`);
       if (!res.ok) return;
       const s = await res.json();
-      if (s.current_price != null) {
-        const priceEl = document.getElementById('p-price');
-        const newStr  = '$' + Number(s.current_price).toFixed(2);
-        if (priceEl && priceEl.textContent !== newStr) {
-          priceEl.textContent = newStr;
+      if (s.last_checked) updateLastChecked(s.last_checked);
+
+      if (s.current_price != null && productData) {
+        const priceChanged = Math.abs(s.current_price - (productData.current_price || 0)) > 0.001;
+        if (priceChanged) {
+          productData.current_price = s.current_price;
+          const priceEl = document.getElementById('p-price');
+          if (priceEl) priceEl.textContent = formatPrice(s.current_price, productData?.currency);
           showToast('Price updated!', 'success');
+          // Refresh chart for the active period
+          await loadHistoryOnly(currentPeriod);
+          // Refresh AI insight only when price changed
+          reloadAiInsight();
         }
       }
-      if (s.last_checked) updateLastChecked(s.last_checked);
     } catch {}
   }, 30000);
+
+  async function reloadAiInsight() {
+    try {
+      const res = await fetch(`/api/products/${productId}?period=all`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.ai_insight) {
+        document.getElementById('insight-text').textContent = data.ai_insight;
+        document.getElementById('insight-card').style.display = 'flex';
+      }
+    } catch {}
+  }
 
   // ── User status + action buttons ───────────────────────────────────────────
   async function loadUserStatus() {
@@ -745,7 +946,7 @@
       if (res.ok) {
         const data = await res.json();
         if (data.current_price != null)
-          document.getElementById('p-price').textContent = '$' + Number(data.current_price).toFixed(2);
+          document.getElementById('p-price').textContent = formatPrice(data.current_price);
         updateLastChecked(data.last_checked);
         showToast('Price updated!', 'success');
       } else { const d = await res.json().catch(() => ({})); showToast(d.detail || 'Could not refresh price.', 'error'); }
@@ -778,10 +979,13 @@
     return best !== null ? best : val;
   }
 
+  function _localCurrentPrice() { return alertCurrentPrice * (_xRate || 1); }
+
   function updatePctDisplay(targetPrice) {
     const el = document.getElementById('pct-display');
-    if (!alertCurrentPrice || alertCurrentPrice <= 0) { el.textContent = '—'; el.className = 'pct-display zero'; return; }
-    const pct = ((targetPrice / alertCurrentPrice) - 1) * 100;
+    const localCurrent = _localCurrentPrice();
+    if (!localCurrent || localCurrent <= 0) { el.textContent = '—'; el.className = 'pct-display zero'; return; }
+    const pct = ((targetPrice / localCurrent) - 1) * 100;
     if (Math.abs(pct) < 0.05) { el.textContent = 'At current price'; el.className = 'pct-display zero'; }
     else if (pct < 0) { el.textContent = Math.abs(pct).toFixed(1) + '% below current price'; el.className = 'pct-display negative'; }
     else              { el.textContent = pct.toFixed(1) + '% above current price';           el.className = 'pct-display positive'; }
@@ -795,7 +999,8 @@
 
   document.getElementById('alert-slider').addEventListener('input', function() {
     if (!alertCurrentPrice) return;
-    const price = alertCurrentPrice * (1 + parseInt(this.value) / 100);
+    const localCurrent = _localCurrentPrice();
+    const price = localCurrent * (1 + parseInt(this.value) / 100);
     document.getElementById('alert-price').value = Math.max(0.01, price).toFixed(2);
     updatePctDisplay(price); updateSliderThumb(this);
   });
@@ -804,7 +1009,8 @@
     const snapped = snapToNearest(parseInt(this.value));
     this.value = snapped;
     if (alertCurrentPrice) {
-      const price = alertCurrentPrice * (1 + snapped / 100);
+      const localCurrent = _localCurrentPrice();
+      const price = localCurrent * (1 + snapped / 100);
       document.getElementById('alert-price').value = Math.max(0.01, price).toFixed(2);
       updatePctDisplay(price);
     }
@@ -815,8 +1021,9 @@
     const price = parseFloat(this.value);
     updatePctDisplay(isNaN(price) ? 0 : price);
     if (!alertCurrentPrice || isNaN(price)) return;
+    const localCurrent = _localCurrentPrice();
     const slider = document.getElementById('alert-slider');
-    slider.value = Math.max(-50, Math.min(50, Math.round((price / alertCurrentPrice - 1) * 100)));
+    slider.value = Math.max(-50, Math.min(50, Math.round((price / localCurrent - 1) * 100)));
     updateSliderThumb(slider);
   });
 
@@ -824,22 +1031,31 @@
     alertMode = mode;
     alertCurrentPrice = productData ? (productData.current_price || 0) : 0;
     document.getElementById('modal-subtitle').textContent =
-      alertCurrentPrice > 0 ? 'Current price: $' + alertCurrentPrice.toFixed(2) : 'Current price: unknown';
+      alertCurrentPrice > 0 ? 'Current price: ' + formatPrice(alertCurrentPrice) : 'Current price: unknown';
     document.getElementById('modal-error').style.display = 'none';
 
     const isEdit = (mode === 'edit' && userStatus && userStatus.alert);
     document.getElementById('modal-title').textContent    = isEdit ? 'Edit target price' : 'Set target price';
     document.getElementById('btn-alert-save').textContent = isEdit ? 'Save' : 'Set Alert';
 
+    // Update label and input max to reflect current currency
+    const currSym = CURRENCY_SYMBOLS[_xCurrency] || _xCurrency;
+    document.getElementById('alert-price-label').textContent = `Target price (${currSym})`;
+    const localCurrent = _localCurrentPrice();
+    document.getElementById('alert-price').max = Math.ceil(localCurrent * 3) || 9999;
+
     const slider = document.getElementById('alert-slider');
     slider.disabled = (alertCurrentPrice <= 0);
-    const target = isEdit ? userStatus.alert.target_price : (alertCurrentPrice > 0 ? alertCurrentPrice * 0.9 : 0);
-    document.getElementById('alert-price').value = target > 0 ? target.toFixed(2) : '';
-    if (alertCurrentPrice > 0 && target > 0) {
-      slider.value = Math.max(-50, Math.min(50, Math.round((target / alertCurrentPrice - 1) * 100)));
+    // Existing alert target is stored in USD — convert to local for display
+    const targetLocal = isEdit
+      ? userStatus.alert.target_price * (_xRate || 1)
+      : (localCurrent > 0 ? localCurrent * 0.9 : 0);
+    document.getElementById('alert-price').value = targetLocal > 0 ? targetLocal.toFixed(2) : '';
+    if (localCurrent > 0 && targetLocal > 0) {
+      slider.value = Math.max(-50, Math.min(50, Math.round((targetLocal / localCurrent - 1) * 100)));
       updateSliderThumb(slider);
     }
-    updatePctDisplay(target);
+    updatePctDisplay(targetLocal);
     document.getElementById('alert-modal').classList.add('open');
   }
 
@@ -855,10 +1071,12 @@
     const saveBtn = document.getElementById('btn-alert-save');
     errEl.style.display = 'none';
 
-    const targetPrice = parseFloat(document.getElementById('alert-price').value);
-    if (!targetPrice || targetPrice <= 0) {
+    const targetPriceLocal = parseFloat(document.getElementById('alert-price').value);
+    if (!targetPriceLocal || targetPriceLocal <= 0) {
       errEl.textContent = 'Please enter a valid target price.'; errEl.style.display = 'block'; return;
     }
+    // Convert local currency back to USD for storage (backend always uses USD)
+    const targetPrice = targetPriceLocal / (_xRate || 1);
 
     saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
     try {
@@ -892,6 +1110,7 @@
 
   // ── Init ───────────────────────────────────────────────────────────────────
   (async () => {
+    await initCurrency();
     await loadProduct('week');
     await loadUserStatus();
     loadMarketAnalysis();
