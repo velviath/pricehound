@@ -26,6 +26,16 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    code: str
+    new_password: str
+
+
 # ── Products ─────────────────────────────────────────────────────────────────
 
 class TrackRequest(BaseModel):
@@ -50,6 +60,7 @@ class ProductResponse(BaseModel):
     price_history: list[PricePoint] = []
     ai_insight: Optional[str] = None
     watcher_count: int = 0
+    availability: str = "available"
 
 
 # ── Alerts ───────────────────────────────────────────────────────────────────
@@ -57,7 +68,6 @@ class ProductResponse(BaseModel):
 class AlertCreate(BaseModel):
     product_id: int
     target_price: float
-    email: Optional[EmailStr] = None  # for anonymous users; JWT users use account email
 
 
 class AlertResponse(BaseModel):
@@ -84,6 +94,7 @@ class DashboardProduct(BaseModel):
     target_price: Optional[float]
     alert_active: Optional[bool]
     alert_id: Optional[int]
+    availability: str = "available"
 
 
 class DashboardSummary(BaseModel):

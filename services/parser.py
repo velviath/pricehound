@@ -18,13 +18,15 @@ Raises ValueError with a human-readable message on total failure.
 import json
 import logging
 import re
+from collections import Counter
 from typing import Optional
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urlparse, urljoin, urlencode, parse_qs, quote
 
 import httpx
 from bs4 import BeautifulSoup
 
 from config import settings
+from services.openai_service import check_product_availability
 
 logger = logging.getLogger(__name__)
 
@@ -130,15 +132,33 @@ _AMAZON_PRICE_SELECTORS = [
 
 # CSS class fragments that commonly wrap a price
 _GENERIC_PRICE_CLASSES = [
-    "price_color",       # books.toscrape.com
+    "price_color",              # books.toscrape.com
     "price",
     "product-price",
     "offer-price",
     "sale-price",
     "current-price",
-    "woocommerce-Price-amount",
-    "priceView-customer-price",   # Best Buy
-    "a-price",                    # Amazon fallback
+    "woocommerce-Price-amount", # WooCommerce
+    "priceView-customer-price", # Best Buy
+    "a-price",                  # Amazon fallback
+    "product__price",           # Shopify themes
+    "price__current",           # Shopify
+    "price__sale",              # Shopify
+    "pdp-price",                # common PDP pattern
+    "pip-price",                # IKEA
+    "special-price",
+    "selling-price",
+    "now-price",
+    "final-price",
+]
+
+# data-* attributes that sometimes hold the raw numeric price
+_PRICE_DATA_ATTRS = [
+    "data-price",
+    "data-product-price",
+    "data-current-price",
+    "data-sale-price",
+    "data-final-price",
 ]
 
 # Regex that matches typical price strings: $1,299.99 / €49 / 29.90 etc.
@@ -149,7 +169,7 @@ _PRICE_RE = re.compile(
 )
 
 
-def _build_fetch_url(url: str) -> str:
+def _build_fetch_url(url: str, render_off: bool = False) -> str:
     """
     If SCRAPER_API_KEY is configured, route through ScraperAPI with JavaScript
     rendering enabled. render=true makes ScraperAPI launch a real browser so
@@ -159,8 +179,12 @@ def _build_fetch_url(url: str) -> str:
     """
     key = getattr(settings, "scraper_api_key", "")
     if key:
-        from urllib.parse import quote
-        return f"http://api.scraperapi.com?api_key={key}&render=true&url={quote(url, safe='')}"
+        host = (urlparse(url).hostname or "").lower()
+        _TLD_COUNTRY = {"co.uk": "gb", "de": "de", "fr": "fr", "it": "it", "es": "es", "co.jp": "jp", "com.au": "au", "ca": "ca"}
+        country = next((c for tld, c in _TLD_COUNTRY.items() if host.endswith("." + tld) or host == tld), None)
+        country_param = f"&country_code={country}" if country else ""
+        render = "false" if render_off else "true"
+        return f"http://api.scraperapi.com?api_key={key}&render={render}{country_param}&url={quote(url, safe='')}"
     return url
 
 
@@ -169,9 +193,12 @@ def _clean_price(raw: str) -> Optional[float]:
     digits = re.sub(r"[^\d.,]", "", raw.strip())
     if not digits:
         return None
-    # European format: 1.234,56 → 1234.56
+    # European format with thousands separator: 1.234,56 → 1234.56
     if re.match(r"^\d{1,3}(\.\d{3})+(,\d{1,2})?$", digits):
         digits = digits.replace(".", "").replace(",", ".")
+    # European decimal without thousands separator: 829,00 → 829.00
+    elif re.match(r"^\d+,\d{1,2}$", digits):
+        digits = digits.replace(",", ".")
     else:
         digits = digits.replace(",", "")
     try:
@@ -183,9 +210,15 @@ def _clean_price(raw: str) -> Optional[float]:
         return None
 
 
+_DOMAIN_CURRENCY: dict[str, str] = {
+    "selfridges.com": "GBP",
+}
+
 def _currency_from_url(url: str) -> Optional[str]:
     """Infer currency from the URL's TLD (e.g. amazon.co.uk → GBP)."""
     host = (urlparse(url).hostname or "").lower().removeprefix("www.")
+    if host in _DOMAIN_CURRENCY:
+        return _DOMAIN_CURRENCY[host]
     # Try progressively shorter suffixes: "co.uk", "uk", etc.
     parts = host.split(".")
     for length in (2, 1):
@@ -256,35 +289,46 @@ def _extract_from_og(soup: BeautifulSoup) -> tuple[Optional[float], Optional[str
 def _extract_from_schema(soup: BeautifulSoup) -> tuple[Optional[float], Optional[str]]:
     """
     Returns (price, currency) sourced from the *same* JSON-LD offer block.
-    Keeping them paired prevents the eBay-UK bug where og: has USD price and
-    Schema.org has the correct GBP price.
+    Two-pass: first look for lowPrice (sale price), then fall back to price.
     """
-    for script in soup.find_all("script", type="application/ld+json"):
+    all_scripts = soup.find_all("script", type="application/ld+json")
+    parsed = []
+    for script in all_scripts:
         try:
-            data = json.loads(script.string or "")
+            parsed.append(json.loads(script.string or ""))
         except (json.JSONDecodeError, TypeError):
             continue
 
+    def _iter_offers(data):
         objects = data if isinstance(data, list) else [data]
         for obj in objects:
-            # Recurse into @graph
             items = obj.get("@graph") or [obj]
             for item in items:
-                if item.get("@type") == "Offer":
-                    price = _clean_price(str(item.get("price", "")))
-                    if price:
-                        curr = item.get("priceCurrency")
-                        return price, (str(curr).strip().upper() if curr and len(str(curr).strip()) == 3 else None)
-
+                if item.get("@type") in ("Offer", "AggregateOffer"):
+                    yield item
                 offers = item.get("offers")
                 if isinstance(offers, dict):
-                    offers = [offers]
-                if isinstance(offers, list):
-                    for offer in offers:
-                        price = _clean_price(str(offer.get("price", "")))
-                        if price:
-                            curr = offer.get("priceCurrency")
-                            return price, (str(curr).strip().upper() if curr and len(str(curr).strip()) == 3 else None)
+                    yield offers
+                elif isinstance(offers, list):
+                    yield from offers
+
+    # Pass 1: prefer lowPrice (catches sale prices on Zalando etc.)
+    for data in parsed:
+        for offer in _iter_offers(data):
+            raw = offer.get("lowPrice")
+            if raw is not None:
+                price = _clean_price(str(raw))
+                if price:
+                    curr = offer.get("priceCurrency")
+                    return price, (str(curr).strip().upper() if curr and len(str(curr).strip()) == 3 else None)
+
+    # Pass 2: fall back to price field
+    for data in parsed:
+        for offer in _iter_offers(data):
+            price = _clean_price(str(offer.get("price", "")))
+            if price:
+                curr = offer.get("priceCurrency")
+                return price, (str(curr).strip().upper() if curr and len(str(curr).strip()) == 3 else None)
 
     return None, None
 
@@ -312,14 +356,26 @@ def _extract_amazon_price(soup: BeautifulSoup) -> tuple[Optional[float], Optiona
 
 
 def _extract_generic_price(soup: BeautifulSoup) -> Optional[float]:
-    """
-    Look for elements whose class contains a known price keyword.
-    Uses a default-argument capture to avoid the Python closure bug
-    where the loop variable is shared across all lambda calls.
-    """
+    """Try Microdata, data-* attributes, then CSS class heuristics."""
+    # 1. Microdata itemprop="price" — used by many standard e-commerce sites
+    tag = soup.find(attrs={"itemprop": "price"})
+    if tag:
+        val = tag.get("content") or tag.get_text()
+        price = _clean_price(str(val))
+        if price:
+            return price
+
+    # 2. data-* price attributes
+    for attr in _PRICE_DATA_ATTRS:
+        tag = soup.find(attrs={attr: True})
+        if tag:
+            price = _clean_price(str(tag.get(attr, "")))
+            if price:
+                return price
+
+    # 3. CSS class fragments
     for class_fragment in _GENERIC_PRICE_CLASSES:
         tag = soup.find(
-            # cf=class_fragment captures the current value, not a reference
             lambda t, cf=class_fragment: t.name and any(
                 cf in c.lower() for c in (t.get("class") or [])
             )
@@ -328,6 +384,7 @@ def _extract_generic_price(soup: BeautifulSoup) -> Optional[float]:
             price = _clean_price(tag.get_text())
             if price:
                 return price
+
     return None
 
 
@@ -344,8 +401,6 @@ def _extract_price_regex(
     with the matching symbol (£) to avoid picking up incidental USD/other prices.
     Falls back to all candidates if the filtered set is empty.
     """
-    from collections import Counter
-
     expected_symbol = _CURRENCY_SYMBOLS.get(expected_currency or "", "") if expected_currency else ""
 
     # Extended regex that also captures the leading symbol
@@ -377,6 +432,52 @@ def _extract_price_regex(
 
     most_common = Counter(pool).most_common(1)
     return most_common[0][0] if most_common else None
+
+
+def _extract_from_next_data(soup: BeautifulSoup) -> tuple[Optional[float], Optional[str]]:
+    """
+    Extract price from Next.js __NEXT_DATA__ JSON blob.
+    Covers Boots, Argos, John Lewis, and many other UK/EU retailers built on Next.js.
+    """
+    tag = soup.find("script", {"id": "__NEXT_DATA__"})
+    if not tag or not tag.string:
+        return None, None
+    try:
+        data = json.loads(tag.string)
+    except (json.JSONDecodeError, ValueError):
+        return None, None
+
+    def _search(obj, depth=0):
+        if depth > 8:
+            return None, None
+        if isinstance(obj, dict):
+            for price_key in ("price", "salePrice", "finalPrice", "currentPrice", "priceValue", "sellPrice", "amount"):
+                val = obj.get(price_key)
+                if val is not None:
+                    p = float(val) if isinstance(val, (int, float)) and val > 0 else _clean_price(str(val))
+                    if p and 0 < p < 1_000_000:
+                        for curr_key in ("currency", "currencyCode", "priceCurrency"):
+                            c = obj.get(curr_key)
+                            if c and isinstance(c, str) and len(c.strip()) == 3:
+                                return p, c.strip().upper()
+                        return p, None
+            for key, value in obj.items():
+                if key in ("@context", "description", "content", "html", "url", "image"):
+                    continue
+                p, c = _search(value, depth + 1)
+                if p is not None:
+                    return p, c
+        elif isinstance(obj, list):
+            for item in obj[:5]:
+                p, c = _search(item, depth + 1)
+                if p is not None:
+                    return p, c
+        return None, None
+
+    price, currency = _search(data)
+    if price:
+        logger.info("Price found via __NEXT_DATA__: %.2f %s", price, currency)
+    return price, currency
 
 
 def _extract_page_context(soup: BeautifulSoup, max_chars: int = 3000) -> str:
@@ -494,7 +595,109 @@ _SYMBOL_CURRENCY: dict[str, str] = {
     "AU$": "AUD",
 }
 
+_UNAVAILABLE_SCHEMA_SUFFIXES = frozenset({
+    "outofstock", "discontinued", "soldout",
+})
+
+_UNAVAILABLE_TEXT_SIGNALS = (
+    # eBay
+    "this listing was ended",
+    "listing was ended by the seller",
+    "sorry, this listing ended",
+    "listing ended",
+    "this listing has ended",
+    "listing has ended",
+    # Amazon
+    "currently unavailable",
+    "this item is no longer available",
+    "we don't know when or if this item will be back in stock",
+    # Vinted / general
+    "this item has been sold",
+    "item not found",
+    "this product is not available",
+    "no longer available",
+    "item unavailable",
+    "product unavailable",
+    "out of stock",
+    "sold out",
+)
+
+
+def _detect_unavailability(soup: BeautifulSoup, page_title: str) -> bool:
+    """Return True if the page signals the product is no longer available."""
+    # 1. Schema.org offers.availability
+    for script in soup.find_all("script", type="application/ld+json"):
+        try:
+            data = json.loads(script.string or "")
+        except (json.JSONDecodeError, TypeError):
+            continue
+        objects = data if isinstance(data, list) else [data]
+        for obj in objects:
+            items = obj.get("@graph") or [obj]
+            for item in items:
+                offers = item.get("offers")
+                if isinstance(offers, dict):
+                    offers = [offers]
+                if isinstance(offers, list):
+                    for offer in offers:
+                        avail = str(offer.get("availability", "")).lower()
+                        if any(s in avail for s in _UNAVAILABLE_SCHEMA_SUFFIXES):
+                            return True
+
+    # 2. og:availability meta tag
+    og_avail = soup.find("meta", property="og:availability")
+    if og_avail:
+        val = (og_avail.get("content") or "").lower().replace(" ", "").replace("_", "")
+        if any(s in val for s in _UNAVAILABLE_SCHEMA_SUFFIXES) or val in ("oos", "unavailable"):
+            return True
+
+    # 3. Title + body text (scan first 15000 chars — JS-rendered pages can be large)
+    body_text = " ".join(t.strip() for t in soup.stripped_strings)[:15000].lower()
+    combined = page_title.lower() + " " + body_text
+    return any(signal in combined for signal in _UNAVAILABLE_TEXT_SIGNALS)
+
+
 _AMAZON_DOMAINS = {"amazon", "amzn"}
+_EBAY_DOMAINS   = {"ebay"}
+
+
+_TRACKING_PARAMS = {
+    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+    "rec", "cm_sp", "cm_re", "icid", "ref", "ref_", "tag", "linkcode",
+    "linkid", "camp", "creative", "creativeASIN", "th", "psc",
+    "Item", "Tpk", "gclid", "fbclid", "msclkid", "igshid",
+}
+
+def strip_tracking_params(url: str) -> str:
+    """Remove known tracking/session query parameters from a URL."""
+    parsed = urlparse(url)
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+    cleaned = {k: v for k, v in qs.items() if k not in _TRACKING_PARAMS}
+    new_query = urlencode(cleaned, doseq=True)
+    return parsed._replace(query=new_query).geturl()
+
+
+def normalize_ebay_url(url: str) -> str:
+    """
+    Collapse eBay listing URLs to the canonical /itm/{ITEM_ID} form.
+    eBay tracking/session query parameters expire and cause 404s from
+    non-browser IPs (e.g. ScraperAPI). The bare item URL is always stable.
+    Non-eBay URLs are returned unchanged.
+    """
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").removeprefix("www.")
+    parts = host.split(".")
+    domain_name = parts[-3] if len(parts) >= 3 and parts[-2] in _SECOND_LEVEL_DOMAINS else (parts[-2] if len(parts) >= 2 else host)
+    if domain_name not in _EBAY_DOMAINS:
+        return url
+
+    item_match = re.search(r"/itm/(?:[^/]+/)?(\d{10,})", parsed.path)
+    if not item_match:
+        return url
+
+    item_id = item_match.group(1)
+    tld = ".".join(parts[-3:]) if len(parts) >= 3 and parts[-2] in _SECOND_LEVEL_DOMAINS else ".".join(parts[-2:])
+    return f"https://www.{tld}/itm/{item_id}"
 
 
 def normalize_amazon_url(url: str) -> str:
@@ -544,26 +747,51 @@ def _detect_source(url: str) -> str:
 
 async def _resolve_url(url: str) -> str:
     """
-    Follow redirects on the *original* URL (without ScraperAPI) to get the
-    canonical destination. Needed for short links like amzn.eu/d/... that
-    ScraperAPI cannot resolve itself.
-    Returns the final URL, or the original if resolution fails.
+    Follow redirects on the *original* URL to get the canonical destination.
+    Needed for short links like amzn.eu/d/... or amzn.to/...
+    Tries a direct HEAD request first; if that fails (some short links require
+    a browser UA or return 404 to bots), falls back to ScraperAPI to resolve.
+    Returns the final normalized URL, or the original if resolution fails.
     """
     short_hosts = {"amzn.eu", "amzn.to", "a.co", "amzn.in", "amzn.asia"}
     host = (urlparse(url).hostname or "").lower().removeprefix("www.")
     if host not in short_hosts:
         return url
+
+    # Try direct HEAD first (fast, no cost)
     try:
         async with httpx.AsyncClient(
             headers=_HEADERS, follow_redirects=True, timeout=15.0
         ) as client:
             resp = await client.head(url)
             final = str(resp.url)
-            # Normalize the resolved Amazon URL to clean /dp/{ASIN} form
-            return normalize_amazon_url(final)
+            if "amazon." in final:
+                return normalize_amazon_url(final)
+    except Exception:
+        pass
+
+    # Fall back: fetch via ScraperAPI and read canonical tag from page
+    try:
+        fallback_url = _build_fetch_url(url)
+        async with httpx.AsyncClient(follow_redirects=True, timeout=60.0) as client:
+            resp = await client.get(fallback_url)
+            soup_tmp = BeautifulSoup(resp.text, "lxml")
+            canonical = soup_tmp.find("link", rel="canonical")
+            if canonical and canonical.get("href"):
+                final = canonical["href"].strip()
+                if "amazon." in final:
+                    return normalize_amazon_url(final)
+            # Try to get ASIN from the redirected URL
+            final = str(resp.url)
+            if "amazon." in final:
+                return normalize_amazon_url(final)
     except Exception as exc:
         logger.warning("Could not resolve short URL %s: %s", url, exc)
-        return url
+
+    return url
+
+
+_BOT_PROTECTED_DOMAINS = {"amazon", "amzn", "ebay", "argos", "newegg", "bhphotovideo", "target", "spacenk"}
 
 
 async def parse_product(url: str) -> dict:
@@ -577,28 +805,90 @@ async def parse_product(url: str) -> dict:
         ValueError: with a user-friendly message when parsing fails.
     """
     url = await _resolve_url(url)
-    fetch_url = _build_fetch_url(url)
+    url = normalize_ebay_url(url)
+    url = strip_tracking_params(url)
+
+    scraper_key = getattr(settings, "scraper_api_key", "")
+    _host = (urlparse(url).hostname or "").removeprefix("www.")
+    _parts = _host.split(".")
+    _domain = (_parts[-3] if len(_parts) >= 3 and _parts[-2] in _SECOND_LEVEL_DOMAINS
+               else (_parts[-2] if len(_parts) >= 2 else _host)).lower()
+    _needs_scraper = _domain in _BOT_PROTECTED_DOMAINS
+
+    async def _fetch(fetch_url: str, timeout: float = 90.0):
+        async with httpx.AsyncClient(headers=_HEADERS, follow_redirects=True, timeout=timeout) as client:
+            return await client.get(fetch_url)
+
+    response = None
+
+    # For non-bot-protected sites: try a direct fetch first to save ScraperAPI credits
+    if scraper_key and not _needs_scraper:
+        try:
+            direct = await _fetch(url, timeout=20.0)
+            if direct.status_code == 200 and len(direct.text) > 15000:
+                logger.info("Direct fetch succeeded for %s — skipping ScraperAPI", url)
+                response = direct
+        except Exception:
+            pass
+
+    if response is None:
+        try:
+            response = await _fetch(_build_fetch_url(url, render_off=False))
+            # On 404: retry without JS rendering, then fall back to direct fetch
+            if response.status_code == 404 and scraper_key:
+                logger.info("Got 404 with render=true, retrying without JS rendering: %s", url)
+                response = await _fetch(_build_fetch_url(url, render_off=True))
+            if response.status_code == 404:
+                logger.info("ScraperAPI 404, attempting direct fetch: %s", url)
+                response = await _fetch(url, timeout=30.0)
+        except Exception:
+            response = None
+
+    if response is None:
+        raise ValueError("Failed to fetch the product page. Please try again.")
 
     try:
-        async with httpx.AsyncClient(
-            headers=_HEADERS,
-            follow_redirects=True,
-            timeout=90.0,
-        ) as client:
-            response = await client.get(fetch_url)
-            response.raise_for_status()
+        # If all fetches returned 404, check the body for "listing ended" signals.
+        # eBay (and similar) returns 404 with a full HTML page when a listing has been removed.
+        # We parse the content to distinguish a genuine removal from a transient bot-block.
+        if response.status_code == 404:
+            try:
+                _404_soup = BeautifulSoup(response.text, "lxml")
+                _404_text = _404_soup.get_text()[:3000].lower()
+                _404_title = (_404_soup.title.string or "").strip().lower() if _404_soup.title else ""
+                _ENDED_SIGNALS = (
+                    "page is missing", "listing has ended", "listing was ended",
+                    "no longer available", "item not found", "page doesn't exist",
+                    "page not found",
+                )
+                if any(s in _404_text for s in _ENDED_SIGNALS) or "error page" in _404_title:
+                    logger.info("Detected removed/ended listing from 404 content: %s", url)
+                    return {
+                        "name": None, "price": None, "image_url": None,
+                        "source": _detect_source(url),
+                        "availability": "url_error",
+                        "canonical_url": None, "currency": None, "page_context": None,
+                    }
+            except Exception:
+                pass
+        response.raise_for_status()
     except httpx.TimeoutException:
         raise ValueError("The product page took too long to respond. Please try again.")
     except httpx.HTTPStatusError as exc:
         code = exc.response.status_code
         if code in (403, 503):
             raise ValueError(
-                "This website is blocking automated requests. "
-                "Try a different store, or add a SCRAPER_API_KEY to your .env to unlock Amazon, eBay and more."
+                "This website is blocking automated access. "
+                "Try a direct link from your browser, or use a supported store like Amazon or eBay."
             )
-        raise ValueError(f"Could not reach the product page (HTTP {code}).")
-    except Exception as exc:
-        raise ValueError(f"Failed to fetch the product page: {exc}")
+        if code in (404, 410):
+            raise ValueError(
+                "[URL_ERROR] This product page no longer exists. "
+                "The listing may have been removed — try re-adding it with a fresh link."
+            )
+        raise ValueError("Could not reach the product page. Please check the link and try again.")
+    except Exception:
+        raise ValueError("Something went wrong while loading this page. Please try again.")
 
     soup = BeautifulSoup(response.text, "lxml")
 
@@ -630,11 +920,19 @@ async def parse_product(url: str) -> dict:
     _title_lower = page_title.lower()
     # Generic store homepages used as redirect stubs (e.g. "Amazon.co.uk", "eBay")
     _stub_titles = ("amazon.co.uk", "amazon.com", "ebay", "amazon")
-    is_stub_title = _title_lower in _stub_titles or _title_lower == ""
-    if any(s in _title_lower for s in _block_signals) or len(response.text) < 15000 or is_stub_title:
+    is_stub_title = _title_lower in _stub_titles
+    if any(s in _title_lower for s in _block_signals):
         raise ValueError(
-            "Please use the link from your browser, not the app. "
-            "It should look like: amazon.co.uk/dp/XXXXXXXXXX"
+            "This store is blocking automated access. Try a supported store like Amazon or eBay."
+        )
+    if is_stub_title:
+        raise ValueError(
+            "This link leads to a homepage, not a product page. "
+            "If you copied it from an app, try opening the product in your browser and copying the link from the address bar."
+        )
+    if len(response.text) < 15000:
+        raise ValueError(
+            "Could not load this page properly. The store may be temporarily blocking access — please try again later."
         )
 
     # ── Price + currency extraction ────────────────────────────────────────────
@@ -651,43 +949,79 @@ async def parse_product(url: str) -> dict:
 
     price: Optional[float] = None
     price_currency: Optional[str] = None  # currency paired with the price source
+    price_method: Optional[str] = None    # for logging
 
     # Domain-based currency baseline — use canonical/effective URL so that
     # amzn.eu short links resolved to amazon.de give EUR, amazon.co.uk gives GBP
     domain_currency = _currency_from_url(effective_url)
 
     if is_amazon:
-        price, amazon_text_currency = _extract_amazon_price(soup)
-        if price is not None:
-            # Prefer currency extracted from the price text (e.g. "EUR287.00" → EUR),
-            # then fall back to domain TLD (amazon.co.uk → GBP)
-            price_currency = amazon_text_currency or domain_currency
+        amazon_css_price, amazon_text_currency = _extract_amazon_price(soup)
+        schema_price, schema_currency = _extract_from_schema(soup)
 
-    # Schema.org — try next (before og:) because sites like eBay UK set og: to USD
-    # while Schema.org carries the correct local currency
+        if amazon_css_price and schema_price:
+            diff_pct = abs(amazon_css_price - schema_price) / max(amazon_css_price, schema_price)
+            if diff_pct > 0.05:
+                # Disagree by >5% — schema.org is more reliable structured data
+                logger.warning(
+                    "amazon-css (%.2f) disagrees with schema.org (%.2f) by %.0f%% — using schema.org",
+                    amazon_css_price, schema_price, diff_pct * 100,
+                )
+                price = schema_price
+                price_currency = schema_currency or amazon_text_currency or domain_currency
+                price_method = "schema.org (overrides amazon-css)"
+            else:
+                price = amazon_css_price
+                price_currency = amazon_text_currency or domain_currency
+                price_method = "amazon-css"
+        elif amazon_css_price:
+            price = amazon_css_price
+            price_currency = amazon_text_currency or domain_currency
+            price_method = "amazon-css"
+        elif schema_price:
+            price = schema_price
+            price_currency = schema_currency or domain_currency
+            price_method = "schema.org"
+
+    # Schema.org for non-Amazon (before og:)
     if price is None:
         price, price_currency = _extract_from_schema(soup)
+        if price is not None:
+            price_method = "schema.org"
 
     # Open Graph — only use if Schema.org didn't provide a price
     if price is None:
         og_price, og_currency = _extract_from_og(soup)
         if og_price is not None:
             price = og_price
-            # Accept og: currency only when it agrees with domain OR Schema.org didn't
-            # give us a currency hint.  If domain says GBP but og: says USD, trust domain.
+            price_method = "og:price"
             if og_currency and (domain_currency is None or og_currency == domain_currency):
                 price_currency = og_currency
             else:
                 price_currency = price_currency or domain_currency
 
-    if price is None:
-        price = _extract_generic_price(soup)
-
     # Best-effort currency: prefer what the price extraction provided, then domain TLD
     resolved_currency = price_currency or domain_currency
 
-    if price is None:
+    # Next.js __NEXT_DATA__ — covers Boots, Argos, John Lewis, etc.
+    if price is None and not is_amazon:
+        next_price, next_currency = _extract_from_next_data(soup)
+        if next_price is not None:
+            price = next_price
+            price_currency = next_currency or resolved_currency
+            price_method = "next-data"
+            resolved_currency = price_currency or resolved_currency
+
+    # Generic CSS / Microdata / data-* — skipped for Amazon (too many false prices)
+    if price is None and not is_amazon:
+        price = _extract_generic_price(soup)
+        if price is not None:
+            price_method = "generic-css"
+
+    if price is None and not is_amazon:
         price = _extract_price_regex(soup, expected_currency=resolved_currency)
+        if price is not None:
+            price_method = "regex"
 
     name = _extract_name(soup)
     if is_amazon:
@@ -698,19 +1032,34 @@ async def parse_product(url: str) -> dict:
     if price is None:
         raise ValueError(
             "Could not find the price on this page. "
-            "The site may block scrapers or render prices with JavaScript. "
-            "Add a SCRAPER_API_KEY to your .env to enable support for more sites."
+            "Try copying the link directly from your browser, or use a supported store like Amazon or eBay."
         )
 
     # Final currency resolution: structured extraction → domain TLD → fallback USD
     page_currency = resolved_currency or _detect_page_currency(soup, effective_url) or "USD"
 
     logger.info(
-        "Parsed %s → price=%.2f %s (price_source_currency=%s, domain_currency=%s)",
-        url, price, page_currency, price_currency, domain_currency,
+        "Parsed %s → price=%.2f %s via %s (price_source_currency=%s, domain_currency=%s)",
+        url, price, page_currency, price_method, price_currency, domain_currency,
     )
 
     page_context = _extract_page_context(soup)
+
+    # Keyword pre-check first (no API call needed)
+    if _detect_unavailability(soup, page_title):
+        availability = "unavailable"
+    else:
+        # AI check only for secondhand/marketplace platforms where listings commonly end.
+        # Major retailers (Amazon, BestBuy, etc.) don't end listings the same way.
+        _SECONDHAND = {"ebay", "vinted", "depop", "etsy", "gumtree", "craigslist", "mercari", "poshmark"}
+        if source.lower() in _SECONDHAND:
+            is_available = await check_product_availability(page_title, page_context)
+            availability = "available" if is_available else "unavailable"
+        else:
+            availability = "available"
+
+    if availability == "unavailable":
+        logger.info("Product marked unavailable: %s", url)
 
     return {
         "name": name,
@@ -719,4 +1068,6 @@ async def parse_product(url: str) -> dict:
         "image_url": image_url,
         "source": source,
         "page_context": page_context,
+        "availability": availability,
+        "canonical_url": url,  # resolved canonical URL — may differ from original (short links)
     }

@@ -26,6 +26,27 @@ async def get_user_by_id(conn, user_id: int) -> Optional[asyncpg.Record]:
     return await conn.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
 
 
+async def update_user_last_visited(conn, user_id: int) -> None:
+    await conn.execute(
+        "UPDATE users SET last_visited_at = NOW(), inactive_notified_at = NULL WHERE id = $1",
+        user_id,
+    )
+
+
+async def get_users_to_notify_inactive(conn) -> list[asyncpg.Record]:
+    return await conn.fetch(
+        """SELECT id, email FROM users
+           WHERE last_visited_at < NOW() - INTERVAL '14 days'
+             AND inactive_notified_at IS NULL""",
+    )
+
+
+async def set_inactive_notified(conn, user_id: int) -> None:
+    await conn.execute(
+        "UPDATE users SET inactive_notified_at = NOW() WHERE id = $1", user_id
+    )
+
+
 # ── Products ──────────────────────────────────────────────────────────────────
 
 async def create_product(
@@ -61,6 +82,51 @@ async def get_all_products(conn) -> list[asyncpg.Record]:
     return await conn.fetch("SELECT * FROM products ORDER BY created_at DESC")
 
 
+async def get_schedulable_products(conn) -> list[asyncpg.Record]:
+    """
+    Products eligible for auto-tracking:
+    - available/unknown (not unavailable/url_error)
+    - at least one watcher visited in the last 14 days,
+      OR no watchers (demo/unowned products)
+    """
+    return await conn.fetch(
+        """
+        SELECT DISTINCT p.*
+        FROM products p
+        WHERE p.availability NOT IN ('unavailable', 'url_error')
+          AND (
+            NOT EXISTS (SELECT 1 FROM user_products up WHERE up.product_id = p.id)
+            OR EXISTS (
+                SELECT 1 FROM user_products up
+                JOIN users u ON u.id = up.user_id
+                WHERE up.product_id = p.id
+                  AND u.last_visited_at >= NOW() - INTERVAL '14 days'
+            )
+          )
+        ORDER BY p.created_at DESC
+        """
+    )
+
+
+async def count_user_products(conn, user_id: int) -> int:
+    row = await conn.fetchrow(
+        "SELECT COUNT(*) FROM user_products WHERE user_id = $1", user_id
+    )
+    return row["count"]
+
+
+async def update_product_ai_insight(conn, product_id: int, insight: str) -> None:
+    await conn.execute(
+        "UPDATE products SET ai_insight = $1 WHERE id = $2", insight, product_id
+    )
+
+
+async def update_product_market_analysis(conn, product_id: int, analysis: str) -> None:
+    await conn.execute(
+        "UPDATE products SET market_analysis = $1 WHERE id = $2", analysis, product_id
+    )
+
+
 async def update_product_price(
     conn, product_id: int, price: float, currency: Optional[str] = None,
     page_context: Optional[str] = None,
@@ -94,8 +160,11 @@ async def touch_last_checked(conn, product_id: int) -> None:
     )
 
 
-async def delete_product(conn, product_id: int) -> None:
-    await conn.execute("DELETE FROM products WHERE id = $1", product_id)
+async def update_product_availability(conn, product_id: int, availability: str) -> None:
+    await conn.execute(
+        "UPDATE products SET availability = $1 WHERE id = $2",
+        availability, product_id,
+    )
 
 
 async def get_recently_tracked_products(conn, limit: int = 3) -> list[asyncpg.Record]:
@@ -218,6 +287,7 @@ async def get_dashboard_data(conn, user_id: int) -> list[asyncpg.Record]:
             p.current_price,
             p.currency,
             p.source,
+            p.availability,
             a.id          AS alert_id,
             a.target_price,
             a.is_active   AS alert_active,
@@ -276,6 +346,38 @@ async def remove_user_product(conn, user_id: int, product_id: int) -> None:
     await conn.execute(
         "DELETE FROM user_products WHERE user_id = $1 AND product_id = $2",
         user_id, product_id,
+    )
+
+
+# ── Password reset ────────────────────────────────────────────────────────────
+
+async def create_reset_token(conn, user_id: int, code: str) -> None:
+    await conn.execute("DELETE FROM password_reset_tokens WHERE user_id = $1", user_id)
+    await conn.execute(
+        """INSERT INTO password_reset_tokens (user_id, code, expires_at)
+           VALUES ($1, $2, NOW() + INTERVAL '15 minutes')""",
+        user_id, code,
+    )
+
+
+async def get_valid_reset_token(conn, user_id: int, code: str):
+    return await conn.fetchrow(
+        """SELECT * FROM password_reset_tokens
+           WHERE user_id = $1 AND code = $2
+             AND expires_at > NOW() AND used = FALSE""",
+        user_id, code,
+    )
+
+
+async def mark_reset_token_used(conn, user_id: int) -> None:
+    await conn.execute(
+        "UPDATE password_reset_tokens SET used = TRUE WHERE user_id = $1", user_id
+    )
+
+
+async def update_user_password(conn, user_id: int, password_hash: str) -> None:
+    await conn.execute(
+        "UPDATE users SET password_hash = $1 WHERE id = $2", password_hash, user_id
     )
 
 

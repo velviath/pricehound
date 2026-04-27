@@ -13,10 +13,12 @@ from urllib.parse import urlparse, quote
 
 import httpx
 from bs4 import BeautifulSoup
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
+from auth.utils import get_current_user
 from config import settings
+from database.connection import get_pool
 from services.parser import (
     _HEADERS,
     _clean_price,
@@ -36,7 +38,7 @@ router = APIRouter(prefix="/api/debug", tags=["debug"])
 
 
 @router.get("/parse")
-async def debug_parse(url: str):
+async def debug_parse(url: str, current_user: dict = Depends(get_current_user)):
     """Full extraction trace for a given URL."""
     trace: dict = {"url": url, "steps": []}
 
@@ -191,3 +193,111 @@ async def debug_parse(url: str):
     trace["all_price_candidates"] = all_prices_found[:50]
 
     return JSONResponse(trace)
+
+
+@router.post("/send-test-email")
+async def send_test_email(current_user: dict = Depends(get_current_user)):
+    """Send a test price-alert email using the user's first real tracked product."""
+    from services.email_service import send_alert_email
+    recipient = current_user.get("email")
+    if not recipient:
+        return {"ok": False, "error": "No email in token"}
+
+    user_id = int(current_user["sub"])
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """SELECT p.id, p.name, p.current_price, p.image_url, p.currency
+               FROM products p
+               JOIN user_products up ON up.product_id = p.id
+               WHERE up.user_id = $1 AND p.current_price IS NOT NULL
+               ORDER BY up.created_at DESC LIMIT 1""",
+            user_id,
+        )
+
+    if not row:
+        return {"ok": False, "error": "No tracked products found — add a product first"}
+
+    price = float(row["current_price"])
+    try:
+        await send_alert_email(
+            recipient=recipient,
+            product_name=row["name"] or "Test Product",
+            old_price=round(price * 0.88, 2),
+            current_price=price,
+            target_price=round(price * 0.92, 2),
+            product_id=row["id"],
+            product_image=row["image_url"],
+            currency=row["currency"] or "USD",
+        )
+        return {"ok": True, "sent_to": recipient}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@router.post("/send-test-inactive-email")
+async def send_test_inactive_email(current_user: dict = Depends(get_current_user)):
+    from services.email_service import send_inactive_email
+    recipient = current_user.get("email")
+    if not recipient:
+        return {"ok": False, "error": "No email in token"}
+    try:
+        await send_inactive_email(recipient=recipient)
+        return {"ok": True, "sent_to": recipient}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@router.post("/send-test-unavailable-email")
+async def send_test_unavailable_email(current_user: dict = Depends(get_current_user)):
+    from services.email_service import send_unavailable_email
+    recipient = current_user.get("email")
+    if not recipient:
+        return {"ok": False, "error": "No email in token"}
+    user_id = int(current_user["sub"])
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """SELECT p.id, p.name, p.image_url FROM products p
+               JOIN user_products up ON up.product_id = p.id
+               WHERE up.user_id = $1 ORDER BY up.created_at DESC LIMIT 1""",
+            user_id,
+        )
+    if not row:
+        return {"ok": False, "error": "No tracked products found"}
+    try:
+        await send_unavailable_email(
+            recipient=recipient,
+            product_name=row["name"] or "Test Product",
+            product_id=row["id"],
+            product_image=row["image_url"],
+        )
+        return {"ok": True, "sent_to": recipient}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@router.post("/send-test-reset-email")
+async def send_test_reset_email(current_user: dict = Depends(get_current_user)):
+    from services.email_service import send_password_reset_email
+    recipient = current_user.get("email")
+    if not recipient:
+        return {"ok": False, "error": "No email in token"}
+    try:
+        await send_password_reset_email(recipient=recipient, code="482916")
+        return {"ok": True, "sent_to": recipient}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@router.post("/simulate-inactive")
+async def simulate_inactive(current_user: dict = Depends(get_current_user)):
+    """Set last_visited_at to 15 days ago for the current user to test inactivity logic."""
+    user_id = int(current_user["sub"])
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET last_visited_at = NOW() - INTERVAL '15 days' WHERE id = $1",
+            user_id,
+        )
+    return {"ok": True, "message": "last_visited_at set to 15 days ago"}

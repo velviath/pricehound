@@ -2,6 +2,7 @@
 Async database connection pool using asyncpg.
 Creates all tables on first startup if they do not exist.
 """
+from __future__ import annotations
 
 import asyncpg
 from config import settings
@@ -53,7 +54,8 @@ CREATE TABLE IF NOT EXISTS products (
     current_price DECIMAL,
     source        TEXT,
     last_checked  TIMESTAMP,
-    created_at    TIMESTAMP DEFAULT NOW()
+    created_at    TIMESTAMP DEFAULT NOW(),
+    availability  VARCHAR(20) DEFAULT 'available'
 );
 
 CREATE TABLE IF NOT EXISTS alerts (
@@ -93,3 +95,28 @@ async def init_db(pool: asyncpg.Pool) -> None:
         await conn.execute(
             "ALTER TABLE products ADD COLUMN IF NOT EXISTS page_context TEXT;"
         )
+        await conn.execute(
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS availability VARCHAR(20) DEFAULT 'available';"
+        )
+        await conn.execute(
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS ai_insight TEXT;"
+        )
+        await conn.execute(
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS market_analysis TEXT;"
+        )
+        await conn.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_visited_at TIMESTAMP DEFAULT NOW();"
+        )
+        await conn.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS inactive_notified_at TIMESTAMP;"
+        )
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id         SERIAL PRIMARY KEY,
+                user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                code       VARCHAR(6) NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                used       BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        """)

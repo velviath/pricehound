@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     smtp_from: str = ""  # defaults to smtp_user if empty
 
     # ── Scheduler ─────────────────────────────────────────────────────────────
-    price_check_interval_hours: int = 4
+    price_check_interval_hours: int = 12
 
     # ── App ───────────────────────────────────────────────────────────────────
     app_name: str = "PriceHound"

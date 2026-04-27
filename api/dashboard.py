@@ -39,6 +39,10 @@ async def get_dashboard(current_user: dict = Depends(get_current_user)):
             change_abs = current - old
             change_pct = ((current - old) / old) * 100
 
+        availability = "available"
+        if "availability" in row:
+            availability = row["availability"] or "available"
+
         products.append(
             DashboardProduct(
                 id=row["id"],
@@ -54,6 +58,7 @@ async def get_dashboard(current_user: dict = Depends(get_current_user)):
                 target_price=float(row["target_price"]) if row["target_price"] else None,
                 alert_active=row["alert_active"],
                 alert_id=row["alert_id"],
+                availability=availability,
             )
         )
 

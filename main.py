@@ -74,24 +74,27 @@ app.include_router(debug_router)
 
 # ── HTML page routes (explicit, so they don't conflict with /static) ──────────
 
+_NO_CACHE = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+
+
 @app.get("/", include_in_schema=False)
 async def index():
-    return FileResponse("static/index.html")
+    return FileResponse("static/index.html", headers=_NO_CACHE)
 
 
 @app.get("/product", include_in_schema=False)
 async def product_page():
-    return FileResponse("static/product.html")
+    return FileResponse("static/product.html", headers=_NO_CACHE)
 
 
 @app.get("/dashboard", include_in_schema=False)
 async def dashboard_page():
-    return FileResponse("static/dashboard.html")
+    return FileResponse("static/dashboard.html", headers=_NO_CACHE)
 
 
 @app.get("/login", include_in_schema=False)
 async def login_page():
-    return FileResponse("static/login.html")
+    return FileResponse("static/login.html", headers=_NO_CACHE)
 
 
 # ── Static assets ─────────────────────────────────────────────────────────────

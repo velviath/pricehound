@@ -3,12 +3,45 @@ OpenAI integration for AI price insights.
 Uses GPT-4o-mini to generate a short analysis of price history and page context.
 """
 
+import time
 from typing import Optional
+import httpx
 from openai import AsyncOpenAI
 from config import settings
 
 _client: Optional[AsyncOpenAI] = None
 _analysis_cache: dict[int, str] = {}  # product_id → cached market analysis
+
+# Simple in-memory cache for exchange rates (refreshed every hour)
+_rates_cache: dict = {}
+_rates_fetched_at: float = 0.0
+
+
+async def _get_rates() -> dict:
+    global _rates_cache, _rates_fetched_at
+    if _rates_cache and (time.time() - _rates_fetched_at) < 3600:
+        return _rates_cache
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get("https://open.er-api.com/v6/latest/USD")
+            data = r.json()
+            if data.get("result") == "success":
+                _rates_cache = data["rates"]
+                _rates_fetched_at = time.time()
+    except Exception:
+        pass
+    return _rates_cache
+
+
+def _convert_price(amount: float, from_cur: str, to_cur: str, rates: dict) -> float:
+    """Convert amount from from_cur to to_cur via USD as base."""
+    if from_cur == to_cur or not rates:
+        return amount
+    from_rate = 1.0 if from_cur == "USD" else rates.get(from_cur, 0)
+    to_rate   = 1.0 if to_cur   == "USD" else rates.get(to_cur,   0)
+    if not from_rate or not to_rate:
+        return amount
+    return (amount / from_rate) * to_rate
 
 
 def _get_client() -> AsyncOpenAI:
@@ -80,11 +113,11 @@ async def get_price_insight(
     source: Optional[str] = None,
     currency: Optional[str] = None,
     page_context: Optional[str] = None,
+    display_currency: Optional[str] = None,
 ) -> Optional[str]:
     """
-    Ask GPT-4o-mini to analyse the price history and return 2-3 sentences
-    covering: trend, when price usually drops, and a buy recommendation.
-    Now includes marketplace, currency and full page context for accuracy.
+    Ask GPT-4o-mini to analyse the price history and return 2-3 sentences.
+    If display_currency differs from currency, prices are converted before sending.
     """
     if not settings.openai_api_key:
         return None
@@ -95,14 +128,24 @@ async def get_price_insight(
             "Check back after a few days of tracking."
         )
 
-    cur = currency or "USD"
+    native_cur = currency or "USD"
+    cur = display_currency or native_cur
+
+    # Convert prices to display currency if needed
+    if cur != native_cur:
+        rates = await _get_rates()
+        def _conv(p): return _convert_price(float(p), native_cur, cur, rates)
+    else:
+        def _conv(p): return float(p)
+
     history_lines = "\n".join(
-        f"  {p['checked_at'].strftime('%Y-%m-%d %H:%M')} — {cur} {float(p['price']):.2f}"
+        f"  {p['checked_at'].strftime('%Y-%m-%d %H:%M')} — {cur} {_conv(p['price']):.2f}"
         for p in price_history[-60:]
     )
 
     name_str = f'"{product_name}"' if product_name else "this product"
-    current_str = f"{cur} {current_price:.2f}" if current_price else "unknown"
+    conv_price = _conv(current_price) if current_price else None
+    current_str = f"{cur} {conv_price:.2f}" if conv_price else "unknown"
     marketplace_note = f" (listed on {source})" if source else ""
     _secondhand = source and source.lower() in ("ebay", "vinted", "depop", "etsy", "gumtree", "craigslist")
     secondhand_note = (
@@ -135,5 +178,37 @@ async def get_price_insight(
             temperature=0.4,
         )
         return response.choices[0].message.content.strip()
-    except Exception as exc:
-        return f"AI insight temporarily unavailable: {exc}"
+    except Exception:
+        return None
+
+
+async def check_product_availability(page_title: str, page_context: str) -> bool:
+    """
+    Ask GPT-4o-mini whether the product is still available for purchase.
+    Returns True if available, False if unavailable (ended, sold, out of stock, etc.).
+    Falls back to True (assume available) if the API key is missing or call fails.
+    """
+    if not settings.openai_api_key:
+        return True
+
+    prompt = (
+        "You are analyzing an e-commerce product page to determine if the item is still available for purchase.\n\n"
+        f"Page title: {page_title}\n\n"
+        f"Page content (first 2000 chars):\n{page_context[:2000]}\n\n"
+        "Is this product currently available for purchase? "
+        "Consider signals like 'listing ended', 'sold', 'out of stock', 'unavailable', 'item removed', etc.\n"
+        "Reply with a single word: AVAILABLE or UNAVAILABLE."
+    )
+
+    try:
+        client = _get_client()
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=5,
+            temperature=0,
+        )
+        answer = response.choices[0].message.content.strip().upper()
+        return "UNAVAILABLE" not in answer
+    except Exception:
+        return True  # safe fallback: assume available
