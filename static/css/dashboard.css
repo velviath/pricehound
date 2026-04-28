@@ -57,6 +57,7 @@ nav {
 
 /* ── Page ────────────────────────────────────────────── */
 main {
+  width: 100%;
   max-width: 960px;
   margin: 0 auto;
   padding: 90px 32px 80px;
@@ -470,7 +471,7 @@ input[type="range"].rose-thumb::-moz-range-thumb    { background: var(--rose); }
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
-.skel-card { height: 120px; border-radius: 20px; }
+.skel-card { height: 120px; border-radius: 20px; width: 100%; }
 
 /* ── Empty state ─────────────────────────────────────── */
 .empty-state {
