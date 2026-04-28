@@ -579,8 +579,9 @@ h1 span { color: var(--sage); }
   .section-header { padding: 0 16px; }
   .cards-grid { padding: 0 16px; row-gap: 14px; }
 
-  /* Shorter image — saves vertical space on small screens */
-  .grid-card-img-wrap { aspect-ratio: 3/2; }
+  /* Smaller image without cropping */
+  .grid-card-img-wrap { aspect-ratio: 4/3; }
+  .grid-card-img { object-fit: contain; }
 
   /* Currency banner buttons */
   .currency-banner { padding: 14px 16px; }

@@ -15,7 +15,11 @@ body {
   font-family: 'Plus Jakarta Sans', sans-serif;
   background: var(--bg);
   color: var(--slate-dark);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
+main { flex: 1; }
 
 /* ── Navbar ──────────────────────────────────────────── */
 nav {
@@ -272,9 +276,9 @@ main {
 /* ── Dashboard product card ───────────────────────────── */
 .dash-card {
   background: #fff; border-radius: 20px;
-  padding: 20px 24px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  padding: 20px 32px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
   display: grid; grid-template-columns: 80px 1fr auto;
-  gap: 20px; align-items: center;
+  gap: 24px; align-items: center;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .dash-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.09); }
