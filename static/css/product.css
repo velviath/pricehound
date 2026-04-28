@@ -317,22 +317,16 @@ input[type="range"].rose-thumb::-moz-range-thumb     { background: var(--rose); 
   }
   .product-title-group { order: 1; width: 100%; text-align: center; }
   .product-img-wrap    { order: 2; display: flex; justify-content: center; }
-  .product-info        { order: 3; width: 100%; display: flex; flex-direction: column; align-items: center; }
+  .product-info        { order: 3; width: 100%; }
 
   .product-img { max-width: 160px; max-height: 180px; }
   .product-img-placeholder { width: 130px; height: 130px; font-size: 48px; }
   .product-name { font-size: 20px; margin-bottom: 0; }
   .product-source { margin-bottom: 6px; }
-  .price-current { font-size: 32px; }
+  .price-current { font-size: 38px; }
 
-  .unavail-banner { width: 100%; }
-  .price-block { justify-content: center; }
-  #p-change-badge { text-align: center; }
-  .action-col { align-items: center; width: 100%; }
-  .action-row { justify-content: center; flex-wrap: wrap; }
-  .btn-source { align-self: center; }
-  .price-meta-row { justify-content: center; }
-  .watchers { text-align: center; }
+  /* btn-source as wide as the two action buttons above it */
+  .btn-source { width: 100%; justify-content: center; }
 
   /* Chart */
   .chart-header { flex-direction: column; gap: 12px; align-items: flex-start; }
