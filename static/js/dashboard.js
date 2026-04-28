@@ -560,7 +560,7 @@ document.getElementById('btn-confirm-ok').addEventListener('click', async () => 
   if (!pendingDeleteId) return;
   closeModal('confirm-modal');
   try {
-    const res = await fetch(`/api/products/${pendingDeleteId}`, {
+    const res = await fetch(`/api/products/${pendingDeleteId}/add`, {
       method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token },
     });
     if (res.ok || res.status === 204) {
