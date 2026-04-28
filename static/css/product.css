@@ -327,11 +327,12 @@ input[type="range"].rose-thumb::-moz-range-thumb     { background: var(--rose); 
   .price-current { font-size: 44px; }
 
   /* Group 1 + Group 2 side by side, no wrap */
-  .action-meta-row { flex-wrap: nowrap !important; align-items: flex-start !important; justify-content: space-between !important; width: 100%; padding: 0 28px; }
+  .action-meta-row { flex-wrap: nowrap !important; align-items: flex-start !important; justify-content: center !important; gap: 40px !important; }
   .action-meta-row > div:last-child { text-align: left; }
   /* Group 1: Delete+Alert in a row, View on site full-width below */
   .action-col { flex-direction: column; margin-bottom: 0; width: auto; }
   .btn-source { width: 100%; }
+  .btn-add-primary, .btn-delete, .btn-secondary-action { padding: 11px 14px; font-size: 13px; }
 
   /* Skeleton — give image placeholder a size so it doesn't collapse */
   #skeleton-view .product-header > .skeleton { width: 160px; height: 160px; flex-shrink: 0; }
