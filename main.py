@@ -77,6 +77,11 @@ app.include_router(debug_router)
 _NO_CACHE = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
 
 
+@app.api_route("/health", methods=["GET", "HEAD"], include_in_schema=False)
+async def health():
+    return {"status": "ok"}
+
+
 @app.get("/", include_in_schema=False)
 async def index():
     return FileResponse("static/index.html", headers=_NO_CACHE)
