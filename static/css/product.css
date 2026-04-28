@@ -36,7 +36,7 @@ nav {
 .btn-nav-filled:active { transform: scale(0.97); opacity: 0.9; }
 
 /* ── Page ────────────────────────────────────────────── */
-main { max-width: 900px; margin: 0 auto; padding: 90px 32px 80px; }
+main { width: 100%; max-width: 900px; margin: 0 auto; padding: 90px 32px 80px; }
 
 /* ── Approx price hint ───────────────────────────────── */
 .approx-btn {
